@@ -1,28 +1,109 @@
-
----
-
-# Migration Guide
-
-```markdown
 # Migration Guide: Moving Local Workflows to Reusable Workflows
 
-This guide helps you migrate existing per-repo GitHub workflows into the **centralized reusable workflow template**.
+This guide helps you migrate existing per-repo GitHub workflows into the centralized reusable workflow template.
 
----
+## 1. Preparation
 
-## 1️⃣ Preparation
+* Ensure you have access to the `github-workflows-templates` repository.
+* Identify all repositories that will migrate to reusable workflows.
+* Verify each repo has a valid Dockerfile and existing workflow files.
+* Backup existing `.github/workflows/*.yml` files.
 
-1. Ensure you have access to the `github-workflows-templates` repository.  
-2. Identify all repositories that will migrate to reusable workflows.  
-3. Verify each repo has a valid `Dockerfile` and existing workflow files.  
-4. Backup existing `.github/workflows/*.yml` files.
+## 2. Backup Existing Workflows
 
----
+* Create a backup folder in your repo:
 
-## 2️⃣ Backup Existing Workflows
-
-- Create a backup folder in your repo:  
 ```bash
 mkdir backup-workflows
 cp .github/workflows/*.yml backup-workflows/
+```
 
+* Note which workflows handle builds, tests, releases, or notifications.
+
+## 3. Set Repository Secrets and Variables
+
+**Secrets:**
+
+* `DOCKERHUB_USERNAME`
+* `DOCKERHUB_TOKEN`
+* Optional: `GHCR_TOKEN`
+
+**Variables:**
+
+* `IMAGE_ARCHS` → e.g., `linux/amd64,linux/arm64`
+* `ENABLE_PUSH` → `true` or `false`
+
+> These are defined in **Settings → Secrets and Variables → Actions**.
+
+## 4. Optional: Create `.env` for Versioning
+
+* File path: `env/.env`
+* Format: `<PROJECT>_VERSION=<version>`
+* Example:
+
+```env
+SPEEDTEST_VERSION=1.2.0
+```
+
+* Workflow detects the first `_VERSION` variable.
+* If missing, workflow uses the short Git commit SHA as fallback.
+
+## 5. Create Caller Workflow
+
+* Delete or rename old workflow files (e.g., `build.yml`).
+* Create `.github/workflows/build.yml`:
+
+```yaml
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  docker-build:
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/build-extended.yml@main
+    with:
+      image_name: <your-image-name>
+      arch_list: ${{ vars.IMAGE_ARCHS }}
+      enable_push: ${{ vars.ENABLE_PUSH }}
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+```
+
+> Replace `<your-image-name>` with your Docker image name.
+
+## 6. Validate Workflow
+
+1. Commit and push:
+
+```bash
+git add .github/workflows/build.yml env/.env
+git commit -m "Migrate to reusable workflow"
+git push
+```
+
+2. Trigger workflow manually via **Actions → Run workflow**.
+3. Check logs:
+
+   * Version detection works (`.env` or SHA fallback)
+   * Multi-arch images build
+   * Images pushed to Docker Hub and optionally GHCR
+
+## 7. Optional: Repeat for Other Workflows
+
+* Testing, linting, release, or notification workflows can also be migrated similarly using separate reusable workflow templates.
+
+## 8. Cleanup & Documentation
+
+* Remove old workflow files after validation.
+* Update README to indicate the repo now uses reusable workflows.
+* Document any special per-repo variables or environment requirements.
+
+## Notes
+
+* Caller workflows remain lightweight.
+* All logic is centralized in `github-workflows-templates`.
+* Workflows are flexible and safe to extend with additional architectures or registries.
