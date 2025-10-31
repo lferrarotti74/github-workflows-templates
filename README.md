@@ -43,18 +43,20 @@ jobs:
 
 ```mermaid
 flowchart TD
-    A[Caller Workflow (.yml) in repo] --> B[Reusable Workflow: build-extended.yml]
-    B --> C[Optional .env File in repo<br/>e.g., *_VERSION=1.2.0]
-    B --> D[Repository Variables & Secrets<br/>IMAGE_ARCHS, ENABLE_PUSH, DOCKERHUB_*]
-    B --> E[Docker Buildx: Multi-Arch Build]
-    E --> F[Push to Docker Hub & GHCR]
-    F --> G[Tags: latest + version]
+    A["Caller Workflow (.yml) in repo"] --> B["Reusable Workflow: build-extended.yml"]
+    B --> C["Optional .env File in repo (e.g., *_VERSION=1.2.0)"]
+    B --> D["Repository Variables & Secrets: IMAGE_ARCHS, ENABLE_PUSH, DOCKERHUB_*"]
+    B --> E["Docker Buildx: Multi-Arch Build"]
+    E --> F["Push to Docker Hub & GHCR"]
+    F --> G["Tags: latest + version"]
 
     classDef repo fill:#f9f,stroke:#333,stroke-width:1px;
     classDef workflow fill:#bbf,stroke:#333,stroke-width:1px;
     classDef docker fill:#bfb,stroke:#333,stroke-width:1px;
     classDef registry fill:#ffb,stroke:#333,stroke-width:1px;
+
     class A,C,D workflow;
     class B workflow;
     class E docker;
     class F,G registry;
+
