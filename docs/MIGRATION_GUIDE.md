@@ -1,7 +1,7 @@
 
 ---
 
-## 2️⃣ `MIGRATION_GUIDE.md`
+# Migration Guide
 
 ```markdown
 # Migration Guide: Moving Local Workflows to Reusable Workflows
