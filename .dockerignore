@@ -1,0 +1,228 @@
+# GitHub Workflows Templates - .dockerignore
+
+# =============================================================================
+# Version Control
+# =============================================================================
+.git
+.gitignore
+.gitattributes
+.gitmodules
+
+# =============================================================================
+# Documentation
+# =============================================================================
+README.md
+CHANGELOG.md
+CONTRIBUTING.md
+LICENSE
+*.md
+docs/
+doc/
+
+# =============================================================================
+# CI/CD and GitHub Actions
+# =============================================================================
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+azure-pipelines.yml
+Jenkinsfile
+.buildkite/
+
+# GitHub Actions specific
+.actrc
+.secrets
+
+# =============================================================================
+# IDE and Editor Files
+# =============================================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# =============================================================================
+# Environment and Configuration
+# =============================================================================
+.env
+.env.*
+!.env.production
+.envrc
+
+# Local configuration files
+*.local.*
+config.local.*
+
+# =============================================================================
+# Testing and Development
+# =============================================================================
+test/
+tests/
+spec/
+__tests__/
+*.test.*
+*.spec.*
+coverage/
+.nyc_output/
+test-results/
+
+# Testing frameworks
+jest.config.*
+.jest/
+karma.conf.*
+protractor.conf.*
+
+# =============================================================================
+# Build Tools and Dependencies
+# =============================================================================
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+package-lock.json
+yarn.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.venv/
+venv/
+ENV/
+env/
+.tox/
+.pytest_cache/
+
+# Go
+vendor/
+go.sum
+
+# Java
+target/
+*.jar
+*.war
+*.ear
+*.class
+
+# .NET
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+
+# =============================================================================
+# Logs and Runtime Files
+# =============================================================================
+*.log
+logs/
+log/
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# =============================================================================
+# Temporary and Cache Files
+# =============================================================================
+tmp/
+temp/
+.tmp/
+.temp/
+.cache/
+cache/
+
+# =============================================================================
+# Docker Related
+# =============================================================================
+Dockerfile*
+.dockerignore
+docker-compose*.yml
+docker-compose*.yaml
+
+# Docker build context exclusions
+.dockerignore.bak
+
+# =============================================================================
+# Security and Secrets
+# =============================================================================
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+.secrets/
+secring.*
+
+# =============================================================================
+# Backup and Archive Files
+# =============================================================================
+*.bak
+*.backup
+*.tmp
+*.temp
+*.orig
+*.rej
+*.tar
+*.tar.gz
+*.zip
+*.rar
+
+# =============================================================================
+# Project Specific Exclusions
+# =============================================================================
+
+# Backup workflows (from migration guide)
+backup-workflows/
+
+# Local testing and development files
+test-*
+*.test
+local/
+.local/
+
+# Editor and system files
+*.sublime-project
+*.sublime-workspace
+.netrwhist
+
+# =============================================================================
+# Large Files and Media (if any)
+# =============================================================================
+*.iso
+*.dmg
+*.img
+*.bin
+
+# =============================================================================
+# OS Generated Files
+# =============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
