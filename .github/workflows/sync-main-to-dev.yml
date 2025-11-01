@@ -59,4 +59,5 @@ jobs:
 
       - name: Skip merge
         if: steps.need.outputs.needs_merge == 'false'
-        run: echo "No merge needed: ${{ inputs.target_branch }} already contains ${{ inputs.source_branch }}"
+        run: |
+          echo "No merge needed: ${{ inputs.target_branch }} already contains ${{ inputs.source_branch }}"
