@@ -1,0 +1,136 @@
+# .github/workflows/create-release.yml
+name: Reusable – Create GitHub Release
+
+permissions:
+  contents: write
+  packages: write
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Tag to create (e.g. v6.12-r0, v1.2.0, or v1.2.3-beta.1)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Dry run mode (no tag/release/archives creation)'
+        required: false
+        type: boolean
+        default: true
+      force:
+        description: 'Force overwrite existing tag'
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      GITHUB_TOKEN:
+        required: true
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      TAG: ${{ steps.vars.outputs.TAG }}
+      FORCE: ${{ steps.vars.outputs.FORCE }}
+      DRY_RUN: ${{ steps.vars.outputs.DRY_RUN }}
+      PREFIX: ${{ steps.vars.outputs.PREFIX }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.2.0
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Set variables
+        id: vars
+        run: |
+          TAG="${{ inputs.tag }}"
+          FORCE="${{ inputs.force }}"
+          DRY_RUN="${{ inputs.dry_run }}"
+
+          if [[ ! "$TAG" =~ ^v[0-9]+(\.[0-9]+){1,2}(-[a-zA-Z0-9]+(\.[0-9]+)?)?$ ]]; then
+            echo "❌ Invalid tag format: $TAG"
+            echo "Valid examples: v1.2, v1.2.3, v1.2.3-r1, v1.0.0-beta.1"
+            exit 1
+          fi
+
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          PREFIX="${REPO_NAME}-${TAG}/"
+
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
+          echo "FORCE=$FORCE" >> $GITHUB_OUTPUT
+          echo "DRY_RUN=$DRY_RUN" >> $GITHUB_OUTPUT
+          echo "PREFIX=$PREFIX" >> $GITHUB_OUTPUT
+
+      - name: Check for uncommitted changes
+        run: |
+          if ! git diff --quiet || ! git diff --cached --quiet; then
+            echo "❌ There are uncommitted changes. Commit or stash them first."
+            exit 1
+          fi
+
+      - name: Check for uncommitted changes in submodules
+        run: |
+          if [ -n "$(git submodule foreach --quiet 'git diff --quiet || echo $path')" ]; then
+            echo "❌ There are uncommitted changes in submodules."
+            exit 1
+          fi
+
+      - name: Sync and verify branch
+        run: |
+          git fetch origin
+          LOCAL_HEAD=$(git rev-parse HEAD)
+          REMOTE_HEAD=$(git rev-parse origin/$(git rev-parse --abbrev-ref HEAD))
+          if [ "$LOCAL_HEAD" != "$REMOTE_HEAD" ]; then
+            echo "❌ Local branch is out of sync with remote."
+            exit 1
+          fi
+
+      - name: Fetch all tags
+        run: git fetch --tags
+
+      - name: Handle existing tag
+        id: handle-tag
+        run: |
+          if git rev-parse "${{ steps.vars.outputs.TAG }}" >/dev/null 2>&1; then
+            if [ "${{ steps.vars.outputs.FORCE }}" != "true" ]; then
+              echo "❌ Tag '${{ steps.vars.outputs.TAG }}' already exists. Use force=true to overwrite."
+              exit 1
+            else
+              echo "⚠ Force mode: deleting existing tag '${{ steps.vars.outputs.TAG }}'."
+              git tag -d "${{ steps.vars.outputs.TAG }}" || true
+              git push origin ":refs/tags/${{ steps.vars.outputs.TAG }}" || true
+            fi
+          fi
+
+      - name: Dry-run notice
+        if: ${{ steps.vars.outputs.DRY_RUN == 'true' }}
+        run: |
+          echo "🛠 Dry-run mode — no tag/release/archives creation."
+          echo "Would create release for tag: ${{ steps.vars.outputs.TAG }}"
+
+      - name: Create git tag and push
+        if: ${{ steps.vars.outputs.DRY_RUN != 'true' }}
+        run: |
+          git tag "${{ steps.vars.outputs.TAG }}"
+          git push origin "${{ steps.vars.outputs.TAG }}"
+
+      - name: Create release archives
+        if: ${{ steps.vars.outputs.DRY_RUN != 'true' }}
+        run: |
+          mkdir -p release
+          git archive --format=tar.gz --prefix="${{ steps.vars.outputs.PREFIX }}" HEAD \
+            -- . ':!*.git*' '.github' > "release/${{ steps.vars.outputs.TAG }}.tar.gz"
+          git archive --format=zip --prefix="${{ steps.vars.outputs.PREFIX }}" HEAD \
+            -- . ':!*.git*' '.github' > "release/${{ steps.vars.outputs.TAG }}.zip"
+
+      - name: Create GitHub Release and upload assets
+        if: ${{ steps.vars.outputs.DRY_RUN != 'true' }}
+        uses: softprops/action-gh-release@6da8fa9354ddfdc4aeace5fc48d7f679b5214090 # v2
+        with:
+          tag_name: ${{ steps.vars.outputs.TAG }}
+          files: |
+            release/${{ steps.vars.outputs.TAG }}.tar.gz
+            release/${{ steps.vars.outputs.TAG }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

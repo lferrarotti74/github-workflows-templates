@@ -1,0 +1,19 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/" 
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore"
+      include: scope
+    open-pull-requests-limit: 5
+    reviewers:
+      - lferrarotti74
+    ignore:
+      - dependency-name: "actions/checkout"
+        versions:
+          - "v4"
+      - dependency-name: "softprops/action-gh-release"
+        versions:
+          - "v2"
