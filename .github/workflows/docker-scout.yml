@@ -18,17 +18,15 @@ on:
         required: true
       DOCKERHUB_TOKEN:
         required: true
-      GITHUB_TOKEN:
-        required: true
 
 jobs:
   scout:
     runs-on: ubuntu-latest
     env:
+      GITHUB_TOKEN: ${{ github.token }}  # system-provided, no need to declare in secrets
       REGISTRY: docker.io
       IMAGE_NAME: ${{ inputs.image_name }}
       COMPARE_TAG: ${{ inputs.compare_tag }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     permissions:
       contents: read
       packages: write
@@ -72,7 +70,7 @@ jobs:
             type=semver,pattern=v{{version}}
             type=sha,prefix=,suffix=,format=short
 
-      - name: Build and push Docker image
+      - name: Build Docker image
         id: build-and-push
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
@@ -97,4 +95,4 @@ jobs:
           only-severities: critical,high,medium
           only-fixed: true
           write-comment: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ env.GITHUB_TOKEN }}
