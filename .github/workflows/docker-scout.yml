@@ -1,0 +1,100 @@
+name: Docker Scout Scan (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        description: "Docker image name to scan (e.g., myrepo/myimage)"
+        required: true
+        type: string
+      compare_tag:
+        description: "Tag to compare against (default: latest)"
+        required: false
+        type: string
+        default: "latest"
+
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: true
+      DOCKERHUB_TOKEN:
+        required: true
+      GITHUB_TOKEN:
+        required: true
+
+jobs:
+  scout:
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: docker.io
+      IMAGE_NAME: ${{ inputs.image_name }}
+      COMPARE_TAG: ${{ inputs.compare_tag }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: read
+      packages: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.2.0
+        with:
+          fetch-depth: 0
+
+      - name: Set Environment from .env
+        uses: c-py/action-dotenv-to-setenv@925b5d99a3f1e4bd7b4e9928be4e2491e29891d9 # v5
+        id: source-env
+        with:
+          env-file: env/.env
+
+      - name: Echo Version from env
+        run: |
+          echo ${{ steps.source-env.outputs.speedtest_version }} >> "$GITHUB_ENV"
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Log into registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+          tags: |
+            type=edge,branch=$repo.default_branch
+            type=semver,pattern=v{{version}}
+            type=sha,prefix=,suffix=,format=short
+
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          build-args: VERSION=${{ env.SPEEDTEST_VERSION }}
+          push: false
+          load: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+
+      - name: Docker Scout
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: docker/scout-action@f8c776824083494ab0d56b8105ba2ca85c86e4de # v1
+        with:
+          command: cves,recommendations,compare
+          image: ${{ steps.meta.outputs.tags }}
+          to: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.COMPARE_TAG }}
+          ignore-base: true
+          ignore-unchanged: true
+          only-severities: critical,high,medium
+          only-fixed: true
+          write-comment: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
