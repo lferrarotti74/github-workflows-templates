@@ -114,6 +114,7 @@ flowchart TD
     class B workflow;
     class E docker;
     class F,G registry;
+```
 
 ## 🔒 Security Scan (Trivy + Grype + OSV)
 
