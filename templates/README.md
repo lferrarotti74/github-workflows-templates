@@ -51,7 +51,7 @@ jobs:
 Notes:
 - Ensure `lferrarotti74/speedtest-ookla:<compare_tag>` exists (e.g., `latest`), or use a tag you publish (like `main` or release tags).
 - The workflow only passes `VERSION` as a build arg when a value is found in `.env` via `version_var_name`. If your Dockerfile requires `ARG VERSION` with no default, ensure `.env` provides it or add a default in the Dockerfile.
-- Pin `uses:` to a commit SHA or a version tag (`@vX.Y.Z`) for reproducibility.
+- Pin `uses:` to a commit SHA for production pipelines to ensure deterministic and compliant runs. Version tags (e.g., `@vX.Y.Z`) may be acceptable for non‑production/testing, but avoid floating refs like `@main`.
 
 ## Sync Main to Dev (Reusable)
 
@@ -114,7 +114,7 @@ Operational tips:
 
 ## Pinning Strategy
 
-- Prefer pinning to a commit SHA (immutable) or to a released tag (e.g., `@v0.1.0`). Avoid floating refs for production.
+- Prefer pinning to a commit SHA (immutable) for production use. Released tags (e.g., `@v0.1.0`) can be used for testing/non‑production. Avoid floating refs like `@main`.
 
 ## Finding the Commit SHA
 
