@@ -75,6 +75,9 @@ on:
   push:
     branches: [ "main" ]
   workflow_dispatch:
+permissions:
+  contents: read
+  security-events: write  # required to upload SARIF when security scan is enabled
 
 jobs:
   docker-build:
@@ -83,6 +86,7 @@ jobs:
       image_name: myapp
       arch_list: linux/amd64,linux/arm64
       enable_push: true
+      enable_security_scan: true
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
