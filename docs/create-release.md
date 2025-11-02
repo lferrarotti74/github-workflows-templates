@@ -41,7 +41,7 @@ on:
 
 jobs:
   call-reusable:
-    uses: lferrarotti74/github-workflows-templates/.github/workflows/create-release.yml@main
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/create-release.yml@<commit-sha>
     with:
       tag: ${{ inputs.tag }}
       dry_run: ${{ inputs.dry_run }}
@@ -124,7 +124,7 @@ Output example:
 
 * Template repo: **lferrarotti74/github-workflows-templates**
 * Template path: `.github/workflows/create-release.yml`
-* Latest tag: `main`
+* Pinning: use a **commit SHA** for `uses:` (e.g., `@<commit-sha>`) in production pipelines. Avoid floating refs like `@main` to satisfy security policies.
 * Maintainer: **Luca Ferrarotti**
 
 ---

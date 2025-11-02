@@ -11,6 +11,44 @@ This repo is optimized for **Docker multi-architecture builds**, automatic versi
 - Variables and secrets reference: `docs/VARIABLES.md`
 - Migration guide to reusable workflows: `docs/MIGRATION_GUIDE.md`
 - Create Release workflow usage: `docs/create-release.md`
+- Tools and helpers (scripts and action template): `docs/TOOLS.md`
+
+### Pinning Policy
+
+- For security and compliance (e.g., SonarQube), pin reusable workflows with a **commit SHA**:
+  - Example: `uses: lferrarotti74/github-workflows-templates/.github/workflows/build-extended.yml@<commit-sha>`
+  - Avoid floating refs like `@main` or version tags for production pipelines.
+
+## Finding the Commit SHA
+
+```
+Use one of these methods to obtain a commit SHA for pinning:
+
+1) Current repo (your local checkout):
+   git rev-parse HEAD
+
+2) Another repo by tag (resolves annotated tags to the commit):
+   # Replace <owner>/<repo> and <tag>
+   git ls-remote https://github.com/<owner>/<repo>.git <tag>^{}
+   # Example:
+   git ls-remote https://github.com/lferrarotti74/github-workflows-templates.git v0.1.0^{}
+
+3) Another repo by branch:
+   # Replace <owner>/<repo> and <branch>
+   git ls-remote --heads https://github.com/<owner>/<repo>.git <branch>
+   # Example:
+   git ls-remote --heads https://github.com/lferrarotti74/github-workflows-templates.git main
+
+4) GitHub CLI (if you use gh):
+   # Branch:
+   gh api repos/<owner>/<repo>/git/refs/heads/<branch> --jq .object.sha
+   # Tag (handles annotated tags — two-step):
+   TAG_OBJ_SHA=$(gh api repos/<owner>/<repo>/git/refs/tags/<tag> --jq .object.sha)
+   gh api repos/<owner>/<repo>/git/tags/$TAG_OBJ_SHA --jq .object.sha
+
+Once you have the SHA, pin your reusable workflow:
+uses: <owner>/<repo>/.github/workflows/<workflow>@<commit-sha>
+```
 
 ---
 
@@ -18,10 +56,10 @@ This repo is optimized for **Docker multi-architecture builds**, automatic versi
 
 | Workflow | Description | Usage |
 |-----------|--------------|--------|
-| **build-extended.yml** | Reusable Docker build with multi-arch support, auto-version detection, and dual registry push (Docker Hub + optional GHCR). | `uses: lferrarotti74/github-workflows-templates/.github/workflows/build-extended.yml@main` |
+| **build-extended.yml** | Reusable Docker build with multi-arch support, auto-version detection, and dual registry push (Docker Hub + optional GHCR). | `uses: lferrarotti74/github-workflows-templates/.github/workflows/build-extended.yml@<commit-sha>` |
 | **docker-scout.yml** | Docker image analysis using Docker Scout; summarizes CVEs and recommendations, ideal for PR commenting. | `uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@main` |
-| **sync-main-to-dev.yml** | Branch synchronization that merges `main` into `dev` when needed; supports manual and scheduled runs. | `uses: lferrarotti74/github-workflows-templates/.github/workflows/sync-main-to-dev.yml@main` |
-| **create-release.yml** | Automated tag validation and GitHub Release creation with optional dry-run and assets packaging. | `uses: lferrarotti74/github-workflows-templates/.github/workflows/create-release.yml@main` |
+| **sync-main-to-dev.yml** | Branch synchronization that merges `main` into `dev` when needed; supports manual and scheduled runs. | `uses: lferrarotti74/github-workflows-templates/.github/workflows/sync-main-to-dev.yml@<commit-sha>` |
+| **create-release.yml** | Automated tag validation and GitHub Release creation with optional dry-run and assets packaging. | `uses: lferrarotti74/github-workflows-templates/.github/workflows/create-release.yml@<commit-sha>` |
 | **dependabot-reviewer.yml** | Dependabot PR reviewer/manager: auto-labels, enforces policies, and streamlines update workflows. | `uses: lferrarotti74/github-workflows-templates/.github/workflows/dependabot-reviewer.yml@main` |
 
 ---
@@ -40,7 +78,7 @@ on:
 
 jobs:
   docker-build:
-    uses: lferrarotti74/github-workflows-templates/.github/workflows/build-extended.yml@main
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/build-extended.yml@<commit-sha>
     with:
       image_name: myapp
       arch_list: linux/amd64,linux/arm64

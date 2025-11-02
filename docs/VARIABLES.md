@@ -68,3 +68,40 @@ During execution, reusable workflows will set the following environment variable
 ---
 
 This file should be kept up-to-date as new reusable workflows are added or modified.
+
+---
+
+## Pinning and Security
+
+For security and compliance, pin reusable workflows with a **commit SHA** instead of floating refs like `@main`.
+
+### Finding the Commit SHA
+
+```
+Use one of these methods to obtain a commit SHA for pinning:
+
+1) Current repo (your local checkout):
+   git rev-parse HEAD
+
+2) Another repo by tag (resolves annotated tags to the commit):
+   # Replace <owner>/<repo> and <tag>
+   git ls-remote https://github.com/<owner>/<repo>.git <tag>^{}
+   # Example:
+   git ls-remote https://github.com/lferrarotti74/github-workflows-templates.git v0.1.0^{}
+
+3) Another repo by branch:
+   # Replace <owner>/<repo> and <branch>
+   git ls-remote --heads https://github.com/<owner>/<repo>.git <branch>
+   # Example:
+   git ls-remote --heads https://github.com/lferrarotti74/github-workflows-templates.git main
+
+4) GitHub CLI (if you use gh):
+   # Branch:
+   gh api repos/<owner>/<repo>/git/refs/heads/<branch> --jq .object.sha
+   # Tag (handles annotated tags — two-step):
+   TAG_OBJ_SHA=$(gh api repos/<owner>/<repo>/git/refs/tags/<tag> --jq .object.sha)
+   gh api repos/<owner>/<repo>/git/tags/$TAG_OBJ_SHA --jq .object.sha
+
+Once you have the SHA, pin your reusable workflow:
+uses: <owner>/<repo>/.github/workflows/<workflow>@<commit-sha>
+```

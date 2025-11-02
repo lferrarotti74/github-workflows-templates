@@ -37,7 +37,7 @@ permissions:
 
 jobs:
   scout:
-    uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@<ref>
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@<commit-sha>
     with:
       image_name: lferrarotti74/speedtest-ookla
       compare_tag: latest
@@ -83,7 +83,7 @@ concurrency:
 
 jobs:
   sync:
-    uses: lferrarotti74/github-workflows-templates/.github/workflows/sync-main-to-dev.yml@<ref>
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/sync-main-to-dev.yml@<commit-sha>
     with:
       source_branch: main
       target_branch: dev
@@ -101,7 +101,7 @@ permissions:
 
 jobs:
   sync:
-    uses: lferrarotti74/github-workflows-templates/.github/workflows/sync-main-to-dev.yml@<ref>
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/sync-main-to-dev.yml@<commit-sha>
     with:
       source_branch: main
       target_branch: dev
@@ -115,6 +115,37 @@ Operational tips:
 ## Pinning Strategy
 
 - Prefer pinning to a commit SHA (immutable) or to a released tag (e.g., `@v0.1.0`). Avoid floating refs for production.
+
+## Finding the Commit SHA
+
+```
+Use one of these methods to obtain a commit SHA for pinning:
+
+1) Current repo (your local checkout):
+   git rev-parse HEAD
+
+2) Another repo by tag (resolves annotated tags to the commit):
+   # Replace <owner>/<repo> and <tag>
+   git ls-remote https://github.com/<owner>/<repo>.git <tag>^{}
+   # Example:
+   git ls-remote https://github.com/lferrarotti74/github-workflows-templates.git v0.1.0^{}
+
+3) Another repo by branch:
+   # Replace <owner>/<repo> and <branch>
+   git ls-remote --heads https://github.com/<owner>/<repo>.git <branch>
+   # Example:
+   git ls-remote --heads https://github.com/lferrarotti74/github-workflows-templates.git main
+
+4) GitHub CLI (if you use gh):
+   # Branch:
+   gh api repos/<owner>/<repo>/git/refs/heads/<branch> --jq .object.sha
+   # Tag (handles annotated tags — two-step):
+   TAG_OBJ_SHA=$(gh api repos/<owner>/<repo>/git/refs/tags/<tag> --jq .object.sha)
+   gh api repos/<owner>/<repo>/git/tags/$TAG_OBJ_SHA --jq .object.sha
+
+Once you have the SHA, pin your reusable workflow:
+uses: <owner>/<repo>/.github/workflows/<workflow>@<commit-sha>
+```
 
 ## Image Naming (Docker Hub)
 
