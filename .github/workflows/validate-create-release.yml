@@ -18,16 +18,13 @@ on:
         type: boolean
         default: false
 
-permissions:
-  contents: write
-  packages: write
-
 jobs:
   validate:
+    permissions:
+      contents: write
+      packages: write
     uses: lferrarotti74/github-workflows-templates/.github/workflows/create-release.yml@e66d6a30adb38b6b76b55ac9d0b8758f345ef3e4
     with:
       tag: ${{ inputs.tag }}
       dry_run: ${{ inputs.dry_run }}
       force: ${{ inputs.force }}
-    secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
