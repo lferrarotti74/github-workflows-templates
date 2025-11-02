@@ -9,7 +9,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@e66d6a30adb38b6b76b55ac9d0b8758f345ef3e4
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@f8bc09c52e7987bcbf510a531307a41d352e3b37
     with:
       image_name: lferrarotti74/speedtest-ookla
       compare_tag: latest
