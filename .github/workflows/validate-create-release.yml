@@ -1,0 +1,33 @@
+name: Validate: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to create (e.g., v0.0.1-tests)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Dry run mode (default true)'
+        required: false
+        type: boolean
+        default: true
+      force:
+        description: 'Force overwrite existing tag (default false)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  validate:
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/create-release.yml@e66d6a30adb38b6b76b55ac9d0b8758f345ef3e4
+    with:
+      tag: ${{ inputs.tag }}
+      dry_run: ${{ inputs.dry_run }}
+      force: ${{ inputs.force }}
+    secrets:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

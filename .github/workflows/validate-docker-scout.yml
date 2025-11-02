@@ -1,0 +1,21 @@
+name: Validate: Docker Scout
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate:
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@e66d6a30adb38b6b76b55ac9d0b8758f345ef3e4
+    with:
+      image_name: lferrarotti74/speedtest-ookla
+      compare_tag: latest
+      env_file_path: env/.env
+      version_var_name: SPEEDTEST_VERSION
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
