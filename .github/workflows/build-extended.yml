@@ -1,1 +1,359 @@
+name: Build Extended (Reusable)
 
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        description: "Docker image name (e.g., speedtest-ookla)"
+        required: true
+        type: string
+      arch_list:
+        description: "Comma-separated list of target architectures (e.g., linux/amd64,linux/arm64)"
+        required: false
+        type: string
+        default: "linux/amd64,linux/arm64"
+      enable_push:
+        description: "Push built images to registries"
+        required: false
+        type: boolean
+        default: true
+      env_file_path:
+        description: "Path to .env file (optional, e.g., env/.env)"
+        required: false
+        type: string
+        default: "env/.env"
+      version_var_name:
+        description: "Name of version variable in .env file (optional)"
+        required: false
+        type: string
+        default: "SPEEDTEST_VERSION"
+      enable_ghcr:
+        description: "Also tag and push to GHCR"
+        required: false
+        type: boolean
+        default: true
+      enable_security_scan:
+        description: "Run post-build security scans (Trivy)"
+        required: false
+        type: boolean
+        default: true
+      enable_sonar_scan:
+        description: "Run SonarQube analysis"
+        required: false
+        type: boolean
+        default: false
+      sonar_project_key:
+        description: "SonarQube project key (when sonar scan enabled)"
+        required: false
+        type: string
+        default: ""
+      sonar_organization:
+        description: "SonarQube organization (when sonar scan enabled)"
+        required: false
+        type: string
+        default: ""
+      enable_base_update_detection:
+        description: "Detect Alpine base image updates on schedule runs"
+        required: false
+        type: boolean
+        default: true
+
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: true
+      DOCKERHUB_TOKEN:
+        required: true
+      SONAR_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  check-base-image:
+    name: Check Alpine Base Update
+    runs-on: ubuntu-latest
+    if: inputs.enable_base_update_detection == true
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build || steps.default.outputs.should_build }}
+      update_reason: ${{ steps.check.outputs.update_reason || steps.default.outputs.update_reason }}
+      alpine_digest: ${{ steps.check.outputs.digest || steps.default.outputs.digest }}
+    steps:
+      - name: Decide default behavior for non-schedule events
+        id: default
+        run: |
+          echo "should_build=true" >> $GITHUB_OUTPUT
+          echo "update_reason=Non-scheduled trigger" >> $GITHUB_OUTPUT
+          echo "digest=" >> $GITHUB_OUTPUT
+      - name: Check Alpine digest (only on schedule)
+        id: check
+        if: github.event_name == 'schedule'
+        run: |
+          set -e
+          echo "🔍 Checking Alpine Linux for updates..."
+          NEW_DIGEST=$(docker manifest inspect alpine:latest | jq -r '.config.digest // .digest // empty')
+          if [ -z "$NEW_DIGEST" ] || [ "$NEW_DIGEST" = "null" ]; then
+            echo "Trying alternative digest retrieval..."
+            docker pull alpine:latest > /dev/null 2>&1 || true
+            NEW_DIGEST=$(docker image inspect alpine:latest --format '{{index .RepoDigests 0}}' | cut -d'@' -f2)
+          fi
+          if [[ ! "$NEW_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+            echo "⚠️ Invalid Alpine digest: $NEW_DIGEST"
+            echo "should_build=false" >> $GITHUB_OUTPUT
+            echo "update_reason=Failed to retrieve valid Alpine digest" >> $GITHUB_OUTPUT
+            echo "digest=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          STORED_DIGEST="${{ vars.ALPINE_DIGEST }}"
+          echo "Stored Alpine digest: $STORED_DIGEST"
+          echo "Current Alpine digest: $NEW_DIGEST"
+          if [ -z "$STORED_DIGEST" ] || [ "$STORED_DIGEST" = "sha256:initial" ]; then
+            echo "🆕 First run — build proceeds."
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "update_reason=First run - initializing Alpine digest tracking" >> $GITHUB_OUTPUT
+            echo "digest=$NEW_DIGEST" >> $GITHUB_OUTPUT
+          elif [ "$NEW_DIGEST" != "$STORED_DIGEST" ]; then
+            echo "✅ Alpine updated — build proceeds."
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "update_reason=Alpine base updated (${STORED_DIGEST:0:12}... → ${NEW_DIGEST:0:12}...)" >> $GITHUB_OUTPUT
+            echo "digest=$NEW_DIGEST" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No Alpine update detected — skipping build."
+            echo "should_build=false" >> $GITHUB_OUTPUT
+            echo "update_reason=No Alpine update detected" >> $GITHUB_OUTPUT
+            echo "digest=$NEW_DIGEST" >> $GITHUB_OUTPUT
+
+  build:
+    name: Build and Push (Docker)
+    runs-on: ubuntu-latest
+    needs: [check-base-image]
+    if: github.event_name != 'schedule' || needs.check-base-image.outputs.should_build == 'true'
+    env:
+      REGISTRY_IMAGE: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}
+      GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/${{ inputs.image_name }}
+      PUSH_ENABLED: ${{ inputs.enable_push }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.2.0
+        with:
+          fetch-depth: 0
+
+      - name: Check if .env file exists
+        id: check-env
+        run: |
+          if [ -f "${{ inputs.env_file_path }}" ]; then
+            echo "env_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "env_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set Environment from .env
+        if: steps.check-env.outputs.env_exists == 'true'
+        uses: c-py/action-dotenv-to-setenv@925b5d99a3f1e4bd7b4e9928be4e2491e29891d9 # v5
+        id: source-env
+        with:
+          env-file: ${{ inputs.env_file_path }}
+
+      - name: Set version from .env
+        if: steps.check-env.outputs.env_exists == 'true'
+        run: |
+          VERSION_VALUE=$(grep "^${{ inputs.version_var_name }}=" "${{ inputs.env_file_path }}" | cut -d'=' -f2 | tr -d '"' || echo "")
+          if [ -n "$VERSION_VALUE" ]; then
+            echo "VERSION=$VERSION_VALUE" >> $GITHUB_ENV
+          fi
+
+      - name: Fallback version to short Git SHA
+        if: env.VERSION == ''
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "VERSION=$SHORT_SHA" >> $GITHUB_ENV
+
+      - name: Setup QEMU (multi-arch)
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GHCR
+        if: inputs.enable_ghcr == true
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+        with:
+          images: |
+            ${{ env.REGISTRY_IMAGE }}
+            ${{ inputs.enable_ghcr && format('ghcr.io/{0}/{1}', github.repository_owner, inputs.image_name) || '' }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            ${{ github.event_name == 'schedule' && format('alpine.base.updated={0}', needs.check-base-image.outputs.alpine_digest) || '' }}
+          tags: |
+            type=edge,branch=$repo.default_branch
+            type=semver,pattern=v{{version}}
+            type=sha,prefix=,suffix=,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ env.VERSION }},enable=${{ inputs.enable_push }}
+            type=raw,value=alpine-update-{{date 'YYYY-MM-DD'}},enable=${{ github.event_name == 'schedule' && needs.check-base-image.outputs.should_build == 'true' }}
+
+      - name: Build and push (multi-arch)
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          platforms: ${{ inputs.arch_list }}
+          build-args: |
+            VERSION=${{ env.VERSION }}
+          push: ${{ inputs.enable_push }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY_IMAGE }}:buildcache,mode=max
+
+  security-scan:
+    name: Security Scan (Trivy)
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: inputs.enable_security_scan == true && github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.2.0
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Pull latest image
+        run: docker pull docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest
+
+      - name: Setup Trivy
+        uses: aquasecurity/setup-trivy@e6c2c5e321ed9123bda567646e2f96565e34abe1 # v0.2.0
+        with:
+          version: 'v0.67.2'
+
+      - name: Cache Trivy DB
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ runner.os }}-${{ hashFiles('**/Dockerfile') }}-${{ github.run_id }}
+          restore-keys: |
+            trivy-db-${{ runner.os }}-${{ hashFiles('**/Dockerfile') }}-
+            trivy-db-${{ runner.os }}-
+
+      - name: Run Trivy vulnerability scan (table)
+        run: |
+          trivy image \
+            --format table \
+            --output trivy-report.txt \
+            --severity CRITICAL,HIGH,MEDIUM \
+            --exit-code 0 \
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest
+
+      - name: Run Trivy vulnerability scan (SARIF)
+        run: |
+          trivy image \
+            --format sarif \
+            --output trivy-report.sarif \
+            --severity CRITICAL,HIGH,MEDIUM \
+            --exit-code 0 \
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: security-reports
+          path: |
+            trivy-report.txt
+            trivy-report.sarif
+          retention-days: 30
+
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@f443b600d91635bebf5b0d9ebc620189c0d6fba5 # v4.30.8
+        with:
+          sarif_file: trivy-report.sarif
+          category: trivy-container-scan
+
+  sonarqube:
+    name: SonarQube Analysis
+    runs-on: ubuntu-latest
+    if: inputs.enable_sonar_scan == true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.2.0
+        with:
+          fetch-depth: 0
+      - name: Cache SonarQube packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+      - name: Prepare SonarQube arguments
+        id: sonar-args
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            echo "args=-Dsonar.projectKey=${{ inputs.sonar_project_key }} \
+                  -Dsonar.organization=${{ inputs.sonar_organization }} \
+                  -Dsonar.pullrequest.key=$PR_NUMBER \
+                  -Dsonar.pullrequest.branch=$HEAD_REF \
+                  -Dsonar.pullrequest.base=$BASE_REF" >> $GITHUB_OUTPUT
+          else
+            echo "args=-Dsonar.projectKey=${{ inputs.sonar_project_key }} \
+                  -Dsonar.organization=${{ inputs.sonar_organization }} \
+                  -Dsonar.branch.name=$REF_NAME" >> $GITHUB_OUTPUT
+          fi
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          args: ${{ steps.sonar-args.outputs.args }}
+
+  update-digest:
+    name: Update Stored Base Digest
+    runs-on: ubuntu-latest
+    needs: [check-base-image, build]
+    if: inputs.enable_base_update_detection == true && github.event_name == 'schedule' && needs.build.result == 'success' && needs.check-base-image.outputs.alpine_digest != ''
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Patch ALPINE_DIGEST repository variable
+        env:
+          NEW_DIGEST: ${{ needs.check-base-image.outputs.alpine_digest }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          OWNER_REPO="${{ github.repository }}"
+          VAR_NAME="ALPINE_DIGEST"
+          echo "Updating repo variable $VAR_NAME to $NEW_DIGEST"
+          curl -sS -X PATCH \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$OWNER_REPO/actions/variables/$VAR_NAME" \
+            -d "{\"name\": \"$VAR_NAME\", \"value\": \"$NEW_DIGEST\"}"

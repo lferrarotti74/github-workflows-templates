@@ -232,3 +232,4 @@ backup-workflows/
 test-*
 *.test
 setup-template-repo.sh
+_remote_speedtest_build.yml
