@@ -224,7 +224,7 @@ jobs:
           cache-to: type=registry,ref=${{ env.REGISTRY_IMAGE }}:buildcache,mode=max
 
   security-scan:
-    name: Security Scan (Trivy)
+    name: Security Scan (Trivy + Grype + OSV)
     runs-on: ubuntu-latest
     needs: [build]
     if: inputs.enable_security_scan == true && github.event_name != 'pull_request'
@@ -276,6 +276,31 @@ jobs:
             --exit-code 0 \
             docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest
 
+      - name: Setup Grype
+        run: |
+          set -e
+          GRYPE_VERSION=v0.76.0
+          curl -sSL -o grype.tar.gz https://github.com/anchore/grype/releases/download/${GRYPE_VERSION}/grype_0.76.0_linux_amd64.tar.gz
+          tar -xzf grype.tar.gz
+          sudo mv grype /usr/local/bin/grype
+          grype version || true
+
+      - name: Run Grype vulnerability scan (JSON)
+        run: |
+          grype docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest -o json > grype-report.json || true
+
+      - name: Setup OSV Scanner
+        run: |
+          set -e
+          OSV_VERSION=v1.7.3
+          curl -sSL -o osv-scanner https://github.com/google/osv-scanner/releases/download/${OSV_VERSION}/osv-scanner_linux_amd64
+          chmod +x osv-scanner
+          ./osv-scanner --version || true
+
+      - name: Run OSV Scanner on Container Image (JSON)
+        run: |
+          ./osv-scanner scan image docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest --format=json --output=osv-report.json || true
+
       - name: Upload artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -283,6 +308,8 @@ jobs:
           path: |
             trivy-report.txt
             trivy-report.sarif
+            grype-report.json
+            osv-report.json
           retention-days: 30
 
       - name: Upload SARIF to GitHub Security
@@ -290,6 +317,89 @@ jobs:
         with:
           sarif_file: trivy-report.sarif
           category: trivy-container-scan
+
+  build-summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [check-base-image, build, security-scan]
+    if: always()
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.2.0
+        with:
+          fetch-depth: 0
+
+      - name: Check if .env file exists
+        id: check-env
+        run: |
+          if [ -f "${{ inputs.env_file_path }}" ]; then
+            echo "env_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "env_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set Environment from .env
+        if: steps.check-env.outputs.env_exists == 'true'
+        uses: c-py/action-dotenv-to-setenv@925b5d99a3f1e4bd7b4e9928be4e2491e29891d9 # v5
+        with:
+          env-file: ${{ inputs.env_file_path }}
+
+      - name: Set version from .env
+        if: steps.check-env.outputs.env_exists == 'true'
+        run: |
+          VERSION_VALUE=$(grep "^${{ inputs.version_var_name }}=" "${{ inputs.env_file_path }}" | cut -d'=' -f2 | tr -d '"' || echo "")
+          if [ -n "$VERSION_VALUE" ]; then
+            echo "VERSION=$VERSION_VALUE" >> $GITHUB_ENV
+          fi
+
+      - name: Fallback version to short Git SHA
+        if: env.VERSION == ''
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "VERSION=$SHORT_SHA" >> $GITHUB_ENV
+
+      - name: Write build summary
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          UPDATE_REASON: ${{ needs.check-base-image.outputs.update_reason }}
+          ALPINE_DIGEST: ${{ needs.check-base-image.outputs.alpine_digest }}
+          BUILD_STATUS: ${{ needs.build.result }}
+          SCAN_STATUS: ${{ needs.security-scan.result }}
+          REGISTRY_IMAGE: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}
+          GHCR_ENABLED: ${{ inputs.enable_ghcr }}
+          GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/${{ inputs.image_name }}
+          ARCH_LIST: ${{ inputs.arch_list }}
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "**Event:** $EVENT_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Status:** $BUILD_STATUS" >> $GITHUB_STEP_SUMMARY
+          echo "**Security Scan:** $SCAN_STATUS" >> $GITHUB_STEP_SUMMARY
+          echo "**Architectures:** $ARCH_LIST" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Images Built:**" >> $GITHUB_STEP_SUMMARY
+          echo "- \`$REGISTRY_IMAGE:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`$REGISTRY_IMAGE:${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+          if [ "$GHCR_ENABLED" = "true" ]; then
+            echo "- \`$GHCR_IMAGE:latest\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`$GHCR_IMAGE:${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "$EVENT_NAME" = "schedule" ]; then
+            if [ -n "$ALPINE_DIGEST" ]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Schedule Reason:** $UPDATE_REASON" >> $GITHUB_STEP_SUMMARY
+              echo "**New Alpine Digest:** \`$ALPINE_DIGEST\`" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Schedule:** No Alpine update detected" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "$SCAN_STATUS" = "success" ]; then
+            echo "### Security Reports" >> $GITHUB_STEP_SUMMARY
+            echo "- Trivy: \`trivy-report.txt\`, \`trivy-report.sarif\` (SARIF uploaded to Code scanning)" >> $GITHUB_STEP_SUMMARY
+            echo "- Grype: \`grype-report.json\`" >> $GITHUB_STEP_SUMMARY
+            echo "- OSV: \`osv-report.json\`" >> $GITHUB_STEP_SUMMARY
+          fi
 
   sonarqube:
     name: SonarQube Analysis
