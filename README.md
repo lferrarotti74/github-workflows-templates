@@ -5,11 +5,24 @@ This repo is optimized for **Docker multi-architecture builds**, automatic versi
 
 ---
 
+## 📚 Further Reading
+
+- Triggers and permissions for reusable workflows: `docs/TRIGGERS.md`
+- Variables and secrets reference: `docs/VARIABLES.md`
+- Migration guide to reusable workflows: `docs/MIGRATION_GUIDE.md`
+- Create Release workflow usage: `docs/create-release.md`
+
+---
+
 ## 📦 Available Workflows
 
 | Workflow | Description | Usage |
 |-----------|--------------|--------|
-| **build-extended.yml** | Reusable Docker build workflow with multi-arch support, auto-version detection, and dual registry push (Docker Hub + optional GHCR). | `uses: lferrarotti74/github-workflows-templates/.github/workflows/build-extended.yml@main` |
+| **build-extended.yml** | Reusable Docker build with multi-arch support, auto-version detection, and dual registry push (Docker Hub + optional GHCR). | `uses: lferrarotti74/github-workflows-templates/.github/workflows/build-extended.yml@main` |
+| **docker-scout.yml** | Docker image analysis using Docker Scout; summarizes CVEs and recommendations, ideal for PR commenting. | `uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@main` |
+| **sync-main-to-dev.yml** | Branch synchronization that merges `main` into `dev` when needed; supports manual and scheduled runs. | `uses: lferrarotti74/github-workflows-templates/.github/workflows/sync-main-to-dev.yml@main` |
+| **create-release.yml** | Automated tag validation and GitHub Release creation with optional dry-run and assets packaging. | `uses: lferrarotti74/github-workflows-templates/.github/workflows/create-release.yml@main` |
+| **dependabot-reviewer.yml** | Dependabot PR reviewer/manager: auto-labels, enforces policies, and streamlines update workflows. | `uses: lferrarotti74/github-workflows-templates/.github/workflows/dependabot-reviewer.yml@main` |
 
 ---
 
