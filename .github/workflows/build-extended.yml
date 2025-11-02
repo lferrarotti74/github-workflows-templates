@@ -231,6 +231,17 @@ jobs:
     permissions:
       contents: read
       security-events: write
+    outputs:
+      trivy_critical: ${{ steps.parse-metrics.outputs.trivy_critical }}
+      trivy_high: ${{ steps.parse-metrics.outputs.trivy_high }}
+      trivy_medium: ${{ steps.parse-metrics.outputs.trivy_medium }}
+      trivy_low: ${{ steps.parse-metrics.outputs.trivy_low }}
+      secrets_count: ${{ steps.parse-metrics.outputs.secrets_count }}
+      grype_critical: ${{ steps.parse-metrics.outputs.grype_critical }}
+      grype_high: ${{ steps.parse-metrics.outputs.grype_high }}
+      grype_medium: ${{ steps.parse-metrics.outputs.grype_medium }}
+      grype_low: ${{ steps.parse-metrics.outputs.grype_low }}
+      osv_findings: ${{ steps.parse-metrics.outputs.osv_findings }}
     steps:
       - name: Checkout code
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.2.0
@@ -267,12 +278,36 @@ jobs:
             --exit-code 0 \
             docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest
 
+      - name: Run Trivy vulnerability scan (JSON)
+        run: |
+          trivy image \
+            --format json \
+            --output trivy-report.json \
+            --severity CRITICAL,HIGH,MEDIUM,LOW \
+            --exit-code 0 \
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest
+
       - name: Run Trivy vulnerability scan (SARIF)
         run: |
           trivy image \
             --format sarif \
             --output trivy-report.sarif \
             --severity CRITICAL,HIGH,MEDIUM \
+            --exit-code 0 \
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest
+
+      - name: Run Trivy secret scan
+        run: |
+          trivy image \
+            --scanners secret \
+            --format table \
+            --output trivy-secrets.txt \
+            --exit-code 0 \
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest
+          trivy image \
+            --scanners secret \
+            --format json \
+            --output trivy-secrets.json \
             --exit-code 0 \
             docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest
 
@@ -289,6 +324,14 @@ jobs:
         run: |
           grype docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest -o json > grype-report.json || true
 
+      - name: Install Syft (SBOM generator)
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh
+          echo "$PWD/bin" >> $GITHUB_PATH
+
+      - name: Generate SBOM
+        run: syft docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest -o json > sbom.json || echo '{"artifacts":[]}' > sbom.json
+
       - name: Setup OSV Scanner
         run: |
           set -e
@@ -299,7 +342,11 @@ jobs:
 
       - name: Run OSV Scanner on Container Image (JSON)
         run: |
-          ./osv-scanner scan image docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest --format=json --output=osv-report.json || true
+          ./osv-scanner --image docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest --format=json --output=osv-report.json || true
+          # Ensure the report file exists even if the scan fails or outputs elsewhere
+          if [ ! -f "osv-report.json" ]; then
+            echo '{"results":[]}' > osv-report.json
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -308,9 +355,46 @@ jobs:
           path: |
             trivy-report.txt
             trivy-report.sarif
+            trivy-report.json
+            trivy-secrets.txt
+            trivy-secrets.json
             grype-report.json
+            sbom.json
             osv-report.json
           retention-days: 30
+
+      - name: Parse security metrics
+        id: parse-metrics
+        run: |
+          set -e
+          # Trivy vulnerability counts by severity
+          TRIVY_CRIT=$(jq '[.Results[]? | .Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' trivy-report.json 2>/dev/null || echo 0)
+          TRIVY_HIGH=$(jq '[.Results[]? | .Vulnerabilities[]? | select(.Severity=="HIGH")] | length' trivy-report.json 2>/dev/null || echo 0)
+          TRIVY_MED=$(jq '[.Results[]? | .Vulnerabilities[]? | select(.Severity=="MEDIUM")] | length' trivy-report.json 2>/dev/null || echo 0)
+          TRIVY_LOW=$(jq '[.Results[]? | .Vulnerabilities[]? | select(.Severity=="LOW")] | length' trivy-report.json 2>/dev/null || echo 0)
+
+          # Trivy secret findings
+          SECRETS_COUNT=$(jq '[(.Results[]? | (.Secrets // []) | length), (.Results[]? | (.Findings // []) | length)] | add // 0' trivy-secrets.json 2>/dev/null || echo 0)
+
+          # Grype vulnerability counts by severity
+          GRYPE_CRIT=$(jq '[.matches[]? | select(.vulnerability.severity=="Critical")] | length' grype-report.json 2>/dev/null || echo 0)
+          GRYPE_HIGH=$(jq '[.matches[]? | select(.vulnerability.severity=="High")] | length' grype-report.json 2>/dev/null || echo 0)
+          GRYPE_MED=$(jq '[.matches[]? | select(.vulnerability.severity=="Medium")] | length' grype-report.json 2>/dev/null || echo 0)
+          GRYPE_LOW=$(jq '[.matches[]? | select(.vulnerability.severity=="Low")] | length' grype-report.json 2>/dev/null || echo 0)
+
+          # OSV findings count
+          OSV_FINDINGS=$(jq '[.results[]? | (.vulnerabilities // []) | length] | add // 0' osv-report.json 2>/dev/null || echo 0)
+
+          echo "trivy_critical=$TRIVY_CRIT" >> $GITHUB_OUTPUT
+          echo "trivy_high=$TRIVY_HIGH" >> $GITHUB_OUTPUT
+          echo "trivy_medium=$TRIVY_MED" >> $GITHUB_OUTPUT
+          echo "trivy_low=$TRIVY_LOW" >> $GITHUB_OUTPUT
+          echo "secrets_count=$SECRETS_COUNT" >> $GITHUB_OUTPUT
+          echo "grype_critical=$GRYPE_CRIT" >> $GITHUB_OUTPUT
+          echo "grype_high=$GRYPE_HIGH" >> $GITHUB_OUTPUT
+          echo "grype_medium=$GRYPE_MED" >> $GITHUB_OUTPUT
+          echo "grype_low=$GRYPE_LOW" >> $GITHUB_OUTPUT
+          echo "osv_findings=$OSV_FINDINGS" >> $GITHUB_OUTPUT
 
       - name: Upload SARIF to GitHub Security
         uses: github/codeql-action/upload-sarif@f443b600d91635bebf5b0d9ebc620189c0d6fba5 # v4.30.8
@@ -365,6 +449,16 @@ jobs:
           ALPINE_DIGEST: ${{ needs.check-base-image.outputs.alpine_digest }}
           BUILD_STATUS: ${{ needs.build.result }}
           SCAN_STATUS: ${{ needs.security-scan.result }}
+          TRIVY_CRIT: ${{ needs.security-scan.outputs.trivy_critical }}
+          TRIVY_HIGH: ${{ needs.security-scan.outputs.trivy_high }}
+          TRIVY_MED: ${{ needs.security-scan.outputs.trivy_medium }}
+          TRIVY_LOW: ${{ needs.security-scan.outputs.trivy_low }}
+          SECRETS_COUNT: ${{ needs.security-scan.outputs.secrets_count }}
+          GRYPE_CRIT: ${{ needs.security-scan.outputs.grype_critical }}
+          GRYPE_HIGH: ${{ needs.security-scan.outputs.grype_high }}
+          GRYPE_MED: ${{ needs.security-scan.outputs.grype_medium }}
+          GRYPE_LOW: ${{ needs.security-scan.outputs.grype_low }}
+          OSV_FINDINGS: ${{ needs.security-scan.outputs.osv_findings }}
           REGISTRY_IMAGE: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}
           GHCR_ENABLED: ${{ inputs.enable_ghcr }}
           GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/${{ inputs.image_name }}
@@ -397,8 +491,16 @@ jobs:
           if [ "$SCAN_STATUS" = "success" ]; then
             echo "### Security Reports" >> $GITHUB_STEP_SUMMARY
             echo "- Trivy: \`trivy-report.txt\`, \`trivy-report.sarif\` (SARIF uploaded to Code scanning)" >> $GITHUB_STEP_SUMMARY
+            echo "- Trivy Secrets: \`trivy-secrets.txt\`" >> $GITHUB_STEP_SUMMARY
+            echo "- SBOM (Syft): \`sbom.json\`" >> $GITHUB_STEP_SUMMARY
             echo "- Grype: \`grype-report.json\`" >> $GITHUB_STEP_SUMMARY
             echo "- OSV: \`osv-report.json\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Security Findings" >> $GITHUB_STEP_SUMMARY
+            echo "- Trivy CVEs: critical=$TRIVY_CRIT, high=$TRIVY_HIGH, medium=$TRIVY_MED, low=$TRIVY_LOW" >> $GITHUB_STEP_SUMMARY
+            echo "- Trivy Secrets: findings=$SECRETS_COUNT" >> $GITHUB_STEP_SUMMARY
+            echo "- Grype CVEs: critical=$GRYPE_CRIT, high=$GRYPE_HIGH, medium=$GRYPE_MED, low=$GRYPE_LOW" >> $GITHUB_STEP_SUMMARY
+            echo "- OSV entries: $OSV_FINDINGS" >> $GITHUB_STEP_SUMMARY
           fi
 
   sonarqube:

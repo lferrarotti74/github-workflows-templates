@@ -234,3 +234,4 @@ test-*
 setup-template-repo.sh
 _remote_speedtest_build.yml
 _caller_speedtest_build.yml
+build-logs.txt
