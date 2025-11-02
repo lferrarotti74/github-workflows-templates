@@ -1,4 +1,4 @@
-name: Validate: Create Release
+name: "Validate: Create Release"
 
 on:
   workflow_dispatch:

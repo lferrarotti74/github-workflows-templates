@@ -1,4 +1,4 @@
-name: Validate: Sync Main to Target
+name: "Validate: Sync Main to Target"
 
 on:
   workflow_dispatch:

@@ -1,4 +1,4 @@
-name: Validate: Docker Scout
+name: "Validate: Docker Scout"
 
 on:
   pull_request:
