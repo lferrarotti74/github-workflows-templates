@@ -218,6 +218,8 @@ jobs:
           push: ${{ inputs.enable_push }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          provenance: mode=max
+          sbom: true
           cache-from: type=registry,ref=${{ env.REGISTRY_IMAGE }}:buildcache
           cache-to: type=registry,ref=${{ env.REGISTRY_IMAGE }}:buildcache,mode=max
 
