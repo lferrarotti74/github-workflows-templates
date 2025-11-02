@@ -68,6 +68,7 @@ jobs:
       image_name: <your-image-name>
       arch_list: ${{ vars.IMAGE_ARCHS }}
       enable_push: ${{ vars.ENABLE_PUSH }}
+      enable_security_scan: true
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -76,6 +77,8 @@ jobs:
 > Replace `<your-image-name>` with your Docker image name.
 >
 > Pinning policy: Use a **commit SHA** for `@<commit-sha>` to comply with security scanners (e.g., SonarQube). Avoid floating refs like `@main` or version tags in production.
+
+> Security scan: When `enable_security_scan` is true, the workflow runs Trivy (table/json/SARIF), Grype (json), Syft SBOM (json), and OSV Scanner (json). Artifacts are uploaded as `security-reports`, and the final build summary includes CVE and secret counts.
 
 ## 6. Validate Workflow
 
@@ -93,6 +96,8 @@ git push
    * Version detection works (`.env` or SHA fallback)
    * Multi-arch images build
    * Images pushed to Docker Hub and optionally GHCR
+   * Security scan finishes and uploads artifacts (`security-reports`)
+   * Build summary displays Trivy/Grype/OSV counts and secret findings
 
 ## 7. Optional: Repeat for Other Workflows
 
@@ -109,6 +114,7 @@ git push
 * Caller workflows remain lightweight.
 * All logic is centralized in `github-workflows-templates`.
 * Workflows are flexible and safe to extend with additional architectures or registries.
+* When enabled, security scans run post-build; the `build-summary` job depends on `security-scan` via `needs` to render metrics.
 
 ---
 

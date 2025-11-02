@@ -81,11 +81,14 @@ jobs:
   - Optional `pull_request` with `enable_push: false` for build validation without publishing.
 - Minimal permissions:
   - `contents: read`
+  - If `enable_security_scan: true`: also add `security-events: write` to upload SARIF
 - Optional permissions:
   - `packages: write` only if pushing to GHCR in addition to Docker Hub.
 - Notes:
   - Provide Docker Hub secrets: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`.
   - Configure `arch_list`, `enable_push`, and optional GHCR settings as needed.
+  - To enable security scanning (Trivy + Grype + OSV + SBOM), set `enable_security_scan: true` in the caller `with:` inputs.
+  - Security scan artifacts are grouped under `security-reports` and the build summary displays CVE and secret counts.
 
 Caller skeleton:
 
@@ -104,6 +107,7 @@ jobs:
       image_name: lferrarotti74/speedtest-ookla
       arch_list: linux/amd64,linux/arm64
       enable_push: true
+      enable_security_scan: true
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

@@ -111,3 +111,30 @@ flowchart TD
     class E docker;
     class F,G registry;
 
+## 🔒 Security Scan (Trivy + Grype + OSV)
+
+The `build-extended.yml` workflow includes an optional security-scan job that runs after a successful image build.
+
+- Scanners
+  - Trivy: image CVE scan in table (`trivy-report.txt`) and SARIF (`trivy-report.sarif` uploaded to Code Scanning)
+  - Trivy Secrets: secret scan (`trivy-secrets.txt` + JSON `trivy-secrets.json`)
+  - Syft: SBOM generation (`sbom.json`)
+  - Grype: image CVE scan (`grype-report.json`)
+  - OSV: image vulnerability scan (`osv-report.json`)
+
+- Artifacts (`security-reports`)
+  - `trivy-report.txt`, `trivy-report.sarif`, `trivy-report.json`
+  - `trivy-secrets.txt`, `trivy-secrets.json`
+  - `sbom.json`, `grype-report.json`, `osv-report.json`
+
+- Build Summary Metrics
+  - Trivy CVEs: `critical`, `high`, `medium`, `low`
+  - Trivy Secrets: findings count
+  - Grype CVEs: `Critical`, `High`, `Medium`, `Low`
+  - OSV: total vulnerabilities
+
+- Job Dependencies (`needs`)
+  - `security-scan` needs `build` (ensures the image exists before scanning)
+  - `build-summary` needs `check-base-image`, `build`, `security-scan` (prints results and metrics)
+
+Enable with caller inputs: `enable_security_scan: true`. Ensure `security-events: write` permission for SARIF upload.

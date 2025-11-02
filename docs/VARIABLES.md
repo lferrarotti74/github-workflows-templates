@@ -6,11 +6,19 @@ This file documents all the **inputs, variables, secrets, and environment expect
 
 All reusable workflows accept inputs from caller workflows.
 
-| Input Name    | Description                                                                     | Required | Default                   |
-| ------------- | ------------------------------------------------------------------------------- | -------- | ------------------------- |
-| `image_name`  | The Docker image name (e.g., `speedtest` or `myapp`).                           | Yes      | —                         |
-| `arch_list`   | Comma-separated list of target architectures (e.g., `linux/amd64,linux/arm64`). | No       | `linux/amd64,linux/arm64` |
-| `enable_push` | Whether to push the built images to Docker Hub/GHCR.                            | No       | `true`                    |
+| Input Name                 | Description                                                                                  | Required | Default                   |
+| -------------------------- | -------------------------------------------------------------------------------------------- | -------- | ------------------------- |
+| `image_name`               | Docker image name (e.g., `speedtest-ookla`).                                                 | Yes      | —                         |
+| `arch_list`                | Comma-separated list of target architectures (e.g., `linux/amd64,linux/arm64`).              | No       | `linux/amd64,linux/arm64` |
+| `enable_push`              | Push built images to Docker Hub/GHCR.                                                        | No       | `true`                    |
+| `env_file_path`            | Path to `.env` file for version detection (e.g., `env/.env`).                                | No       | `env/.env`                |
+| `version_var_name`         | Name of version variable in `.env` file (e.g., `SPEEDTEST_VERSION`).                         | No       | `SPEEDTEST_VERSION`       |
+| `enable_ghcr`              | Also tag and push images to GHCR.                                                            | No       | `true`                    |
+| `enable_security_scan`     | Run post-build security scans (Trivy, Grype, OSV, Syft).                                     | No       | `true`                    |
+| `enable_sonar_scan`        | Run SonarQube analysis.                                                                      | No       | `false`                   |
+| `sonar_project_key`        | SonarQube project key when sonar scan is enabled.                                            | No       | `""`                     |
+| `sonar_organization`       | SonarQube organization when sonar scan is enabled.                                           | No       | `""`                     |
+| `enable_base_update_detection` | Detect Alpine base updates on scheduled runs to optionally skip builds when unchanged.   | No       | `true`                    |
 
 ## 2. Repository Secrets
 
@@ -21,6 +29,7 @@ All secrets must be configured in **Settings → Secrets and Variables → Actio
 | `DOCKERHUB_USERNAME`      | Docker Hub username for login/push                       | Yes      |
 | `DOCKERHUB_TOKEN`         | Docker Hub personal access token                         | Yes      |
 | `GHCR_TOKEN` *(optional)* | Personal Access Token for GHCR if separate push required | Optional |
+| `SONAR_TOKEN` *(optional)*| Token for SonarQube analysis when `enable_sonar_scan` is true | Optional |
 
 > Notes:
 >
@@ -34,6 +43,7 @@ Variables can be defined under **Settings → Secrets and Variables → Actions 
 | ------------- | ---------------------------------------- | ------------------------- |
 | `IMAGE_ARCHS` | List of architectures for Buildx builds. | `linux/amd64,linux/arm64` |
 | `ENABLE_PUSH` | Whether the workflow should push images. | `true`                    |
+| `ALPINE_DIGEST` | Last known Alpine base digest used for schedule update detection. | `sha256:<digest>` |
 
 ## 4. `.env` Version File
 
@@ -64,6 +74,7 @@ During execution, reusable workflows will set the following environment variable
 | `VERSION`        | Version detected from `.env` or Git SHA fallback                         |
 | `ARCH_LIST`      | List of architectures for Buildx                                         |
 | `PUSH_ENABLED`   | Whether image push is enabled (`true` / `false`)                         |
+| `ALPINE_DIGEST`  | Latest Alpine base digest detected on schedule runs                      |
 
 ---
 
@@ -105,3 +116,29 @@ Use one of these methods to obtain a commit SHA for pinning:
 Once you have the SHA, pin your reusable workflow:
 uses: <owner>/<repo>/.github/workflows/<workflow>@<commit-sha>
 ```
+
+---
+
+## Permissions
+
+- Minimal permissions for caller workflows:
+  - `contents: read`
+- Additional permissions when security scan is enabled:
+  - `security-events: write` (to upload SARIF to Code Scanning)
+- If pushing to GHCR:
+  - `packages: write` and ensure `GITHUB_TOKEN` has read/write in repository settings.
+
+## Security Scan Outputs and Summary
+
+When `enable_security_scan` is true, the workflow produces these outputs from the `security-scan` job, consumed by `build-summary` via `needs`:
+- `trivy_critical`, `trivy_high`, `trivy_medium`, `trivy_low`
+- `secrets_count`
+- `grype_critical`, `grype_high`, `grype_medium`, `grype_low`
+- `osv_findings`
+
+Artifacts uploaded under `security-reports`:
+- `trivy-report.txt`, `trivy-report.json`, `trivy-report.sarif`
+- `trivy-secrets.txt`, `trivy-secrets.json`
+- `sbom.json`
+- `grype-report.json`
+- `osv-report.json`

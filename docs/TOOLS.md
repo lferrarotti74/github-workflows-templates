@@ -71,3 +71,45 @@ jobs:
           echo "Pinned line:"
           echo "uses: ${{ inputs.repo }}/${{ inputs.workflow_path }}@${{ steps.git.outputs.sha }}"
 ```
+
+---
+
+## Security Scanners Overview
+
+The `build-extended.yml` reusable workflow integrates multiple security tools and produces standardized artifacts for downstream consumption and the build summary.
+
+- Trivy (container vulnerabilities)
+  - Runs in `table`, `json`, and `sarif` formats.
+  - Artifacts: `trivy-report.txt`, `trivy-report.json`, `trivy-report.sarif`.
+  - SARIF is uploaded to GitHub Code Scanning.
+  - Summary metrics: counts by severity (critical, high, medium, low).
+
+- Trivy Secrets (secret scanning)
+  - Runs in `table` and `json` formats for reliable parsing.
+  - Artifacts: `trivy-secrets.txt`, `trivy-secrets.json`.
+  - Summary metric: total secret findings. Parser supports both `.Secrets` and `.Findings` JSON structures.
+
+- Syft (SBOM)
+  - Generates an SBOM of the image.
+  - Artifact: `sbom.json`.
+
+- Grype (vulnerability scanning using SBOM/data)
+  - Runs in `json` format.
+  - Artifact: `grype-report.json`.
+  - Summary metrics: counts by severity (Critical, High, Medium, Low).
+
+- OSV Scanner
+  - Scans the built image for vulnerabilities using OSV database.
+  - Artifact: `osv-report.json`.
+  - Summary metric: total OSV vulnerabilities across results.
+
+### Build Summary Integration
+
+The workflow computes and exposes metrics via the `security-scan` job and renders them in the final build summary:
+
+- Trivy CVEs: `critical`, `high`, `medium`, `low`
+- Trivy Secrets: `findings count`
+- Grype CVEs: `Critical`, `High`, `Medium`, `Low`
+- OSV: `total vulnerabilities`
+
+Artifacts are uploaded under the `security-reports` artifact bundle for auditing and offline analysis.
