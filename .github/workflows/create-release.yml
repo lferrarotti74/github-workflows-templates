@@ -1,5 +1,5 @@
 # .github/workflows/create-release.yml
-name: Reusable – Create GitHub Release
+name: Create Release (Reusable)
 
 permissions:
   contents: write
