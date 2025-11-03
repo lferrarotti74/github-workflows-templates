@@ -37,10 +37,6 @@ jobs:
       REGISTRY: docker.io
       IMAGE_NAME: ${{ inputs.image_name }}
       COMPARE_TAG: ${{ inputs.compare_tag }}
-    permissions:
-      contents: read
-      packages: write
-      pull-requests: write
 
     steps:
       - name: Checkout repository
