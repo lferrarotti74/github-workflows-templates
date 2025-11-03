@@ -7,11 +7,12 @@ on:
 permissions:
   contents: read
   pull-requests: write
-  packages: write
 
 jobs:
   validate:
     uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@main
+    permissions:
+      packages: write
     with:
       image_name: lferrarotti74/speedtest-ookla
       compare_tag: latest
