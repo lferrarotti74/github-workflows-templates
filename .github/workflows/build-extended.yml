@@ -123,6 +123,7 @@ jobs:
             echo "should_build=false" >> $GITHUB_OUTPUT
             echo "update_reason=No Alpine update detected" >> $GITHUB_OUTPUT
             echo "digest=$NEW_DIGEST" >> $GITHUB_OUTPUT
+          fi
 
   build:
     name: Build and Push (Docker)
