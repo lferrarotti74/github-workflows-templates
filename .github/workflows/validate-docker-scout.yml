@@ -28,8 +28,26 @@ permissions:
   contents: read
 
 jobs:
+  precheck:
+    name: Precheck Secrets
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Check Docker Hub secrets presence
+        id: check
+        run: |
+          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "Secrets present: proceeding with validation"
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "Secrets missing: will run diagnostic instead"
+          fi
+
   validate:
-    if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+    needs: [precheck]
+    if: needs.precheck.outputs.should_run == 'true'
     uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@main
     with:
       image_name: ${{ inputs.image_name }}
@@ -41,7 +59,8 @@ jobs:
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
   diagnostic:
-    if: ${{ secrets.DOCKERHUB_USERNAME == '' || secrets.DOCKERHUB_TOKEN == '' }}
+    needs: [precheck]
+    if: needs.precheck.outputs.should_run != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Explain skipped validation
