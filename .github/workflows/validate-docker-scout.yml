@@ -1,22 +1,41 @@
 name: "Validate: Docker Scout"
 
 on:
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      image_name:
+        description: 'Docker image to scan (e.g., owner/name)'
+        required: false
+        type: string
+        default: 'lferrarotti74/speedtest-ookla'
+      compare_tag:
+        description: 'Tag to compare against'
+        required: false
+        type: string
+        default: 'latest'
+      env_file_path:
+        description: 'Path to .env file (optional)'
+        required: false
+        type: string
+        default: 'env/.env'
+      version_var_name:
+        description: 'Version variable name in .env (optional)'
+        required: false
+        type: string
+        default: 'SPEEDTEST_VERSION'
 
 permissions:
   contents: read
-  packages: write
-  pull-requests: write
 
 jobs:
   validate:
+    if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@main
     with:
-      image_name: lferrarotti74/speedtest-ookla
-      compare_tag: latest
-      env_file_path: env/.env
-      version_var_name: SPEEDTEST_VERSION
+      image_name: ${{ inputs.image_name }}
+      compare_tag: ${{ inputs.compare_tag }}
+      env_file_path: ${{ inputs.env_file_path }}
+      version_var_name: ${{ inputs.version_var_name }}
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
