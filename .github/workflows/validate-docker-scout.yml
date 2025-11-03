@@ -39,3 +39,14 @@ jobs:
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  diagnostic:
+    if: ${{ secrets.DOCKERHUB_USERNAME == '' || secrets.DOCKERHUB_TOKEN == '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain skipped validation
+        run: |
+          echo "## Docker Scout validation skipped" >> $GITHUB_STEP_SUMMARY
+          echo "Reason: Docker Hub secrets not configured." >> $GITHUB_STEP_SUMMARY
+          echo "Required secrets: \`DOCKERHUB_USERNAME\`, \`DOCKERHUB_TOKEN\`." >> $GITHUB_STEP_SUMMARY
+          echo "Configure repo secrets and re-run via 'Run workflow'." >> $GITHUB_STEP_SUMMARY
