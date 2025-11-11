@@ -3,7 +3,7 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"       # Root directory where workflows live
     schedule:
-      interval: "weekly" # Check weekly for updates
+      interval: "daily" # Check daily for updates
     commit-message:
       prefix: "chore"
       include: scope
