@@ -262,7 +262,7 @@ jobs:
           version: 'v0.67.2'
 
       - name: Cache Trivy DB
-        uses: actions/cache@a7833574556fa59680c1b7cb190c1735db73ebf0 # v5.0.0
+        uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
         with:
           path: ~/.cache/trivy
           key: trivy-db-${{ runner.os }}-${{ hashFiles('**/Dockerfile') }}-${{ github.run_id }}
@@ -514,7 +514,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Cache SonarQube packages
-        uses: actions/cache@a7833574556fa59680c1b7cb190c1735db73ebf0 # v5.0.0
+        uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
         with:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
