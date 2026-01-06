@@ -69,6 +69,7 @@ on:
 permissions:
   contents: read
   packages: write
+  pull-requests: read
 
 jobs:
   check-base-image:
