@@ -66,10 +66,10 @@ on:
       SONAR_TOKEN:
         required: false
 
-permissions:
-  contents: read
-  packages: write
-  pull-requests: read
+# permissions:
+#   contents: write
+#   packages: write
+#   pull-requests: read
 
 jobs:
   check-base-image:
