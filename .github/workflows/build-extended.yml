@@ -66,6 +66,7 @@ on:
       SONAR_TOKEN:
         required: false
 
+permissions: inherit
 # permissions:
 #   contents: write
 #   packages: write
