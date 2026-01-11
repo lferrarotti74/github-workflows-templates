@@ -1,0 +1,70 @@
+name: SonarQube Analysis
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  # Dummy SonarQube Analysis for Dependabot
+  sonarqube-dummy:
+    name: SonarQube Analysis
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Skip SonarQube scan
+        run: echo "Skipping SonarQube scan for Dependabot PRs"
+
+  # SonarQube Analysis Job
+  sonarqube:
+    name: SonarQube Analysis
+    runs-on: ubuntu-latest
+    if: >
+      github.actor != 'dependabot[bot]' && (
+        (github.event_name == 'push' || github.event_name == 'pull_request') ||
+        (github.event_name == 'schedule' && needs.check-base-image.outputs.should_build == 'true')
+      )
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v5.2.0
+        with:
+          fetch-depth: 0  # Required for proper blame/coverage tracking
+
+      - name: Cache SonarQube packages
+        uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Prepare SonarQube arguments
+        id: sonar-args
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            echo "args=-Dsonar.projectKey=lferrarotti74_github-workflows-templates \
+                  -Dsonar.organization=lferrarotti74 \
+                  -Dsonar.pullrequest.key=$PR_NUMBER \
+                  -Dsonar.pullrequest.branch=$HEAD_REF \
+                  -Dsonar.pullrequest.base=$BASE_REF" >> $GITHUB_OUTPUT
+          else
+            echo "args=-Dsonar.projectKey=lferrarotti74_github-workflows-templates \
+                  -Dsonar.organization=lferrarotti74 \
+                  -Dsonar.branch.name=$REF_NAME" >> $GITHUB_OUTPUT
+          fi
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: ${{ steps.sonar-args.outputs.args }}
