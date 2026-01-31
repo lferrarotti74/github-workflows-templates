@@ -292,7 +292,7 @@ jobs:
             --output trivy-report.json \
             --severity CRITICAL,HIGH,MEDIUM,LOW \
             --exit-code 0 \
-            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest
+            ${REGISTRY_IMAGE}:latest
 
       - name: Run Trivy vulnerability scan (SARIF)
         run: |
@@ -346,7 +346,7 @@ jobs:
 
       - name: Run OSV Scanner on Container Image (JSON)
         run: |
-          ./osv-scanner --image docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest --format=json --output=osv-report.json || true
+          ./osv-scanner --image ${REGISTRY_IMAGE}:latest --format=json --output=osv-report.json || true
           # Ensure the report file exists even if the scan fails or outputs elsewhere
           if [ ! -f "osv-report.json" ]; then
             echo '{"results":[]}' > osv-report.json
