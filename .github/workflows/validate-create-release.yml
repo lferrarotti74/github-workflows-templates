@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   validate:
-    uses: lferrarotti74/github-workflows-templates/.github/workflows/create-release.yml@main
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/create-release.yml@c6c4b658fe885031fd727cd2305563cae44ab8a2
     with:
       tag: ${{ inputs.tag }}
       dry_run: ${{ inputs.dry_run }}

@@ -48,7 +48,7 @@ jobs:
   validate:
     needs: [precheck]
     if: needs.precheck.outputs.should_run == 'true'
-    uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@main
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@c6c4b658fe885031fd727cd2305563cae44ab8a2
     with:
       image_name: ${{ inputs.image_name }}
       compare_tag: ${{ inputs.compare_tag }}
