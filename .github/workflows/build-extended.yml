@@ -319,10 +319,7 @@ jobs:
       - name: Setup Grype
         run: |
           set -e
-          GRYPE_VERSION=v0.76.0
-          curl -sSL -o grype.tar.gz https://github.com/anchore/grype/releases/download/${GRYPE_VERSION}/grype_0.76.0_linux_amd64.tar.gz
-          tar -xzf grype.tar.gz
-          sudo mv grype /usr/local/bin/grype
+          curl --proto "=https" --tlsv1.2 -sSfL https://raw.githubusercontent.com/anchore/grype/3e8647396b9b201136afe07a30b98cd5850dcc64/install.sh | sh -s -- -b /usr/local/bin
           grype version || true
 
       - name: Run Grype vulnerability scan (JSON)
@@ -331,7 +328,7 @@ jobs:
 
       - name: Install Syft (SBOM generator)
         run: |
-          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh
+          curl --proto "=https" --tlsv1.2 -sSfL https://raw.githubusercontent.com/anchore/syft/c94d1ccf1c6219da41cf1ad01c9c8473d62fdc12/install.sh | sh
           echo "$PWD/bin" >> $GITHUB_PATH
 
       - name: Generate SBOM
@@ -341,7 +338,7 @@ jobs:
         run: |
           set -e
           OSV_VERSION=v1.7.3
-          curl --proto "=https" -sSL -o osv-scanner https://github.com/google/osv-scanner/releases/download/${OSV_VERSION}/osv-scanner_linux_amd64
+          curl --proto "=https" --tlsv1.2 -sSL -o osv-scanner https://github.com/google/osv-scanner/releases/download/${OSV_VERSION}/osv-scanner_linux_amd64
           chmod +x osv-scanner
           ./osv-scanner --version || true
 
