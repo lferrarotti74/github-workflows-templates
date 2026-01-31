@@ -301,7 +301,7 @@ jobs:
             --output trivy-report.sarif \
             --severity CRITICAL,HIGH,MEDIUM \
             --exit-code 0 \
-            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest
+            ${REGISTRY_IMAGE}:latest
 
       - name: Run Trivy secret scan
         run: |
@@ -326,7 +326,7 @@ jobs:
 
       - name: Run Grype vulnerability scan (JSON)
         run: |
-          grype docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest -o json > grype-report.json || true
+          grype ${REGISTRY_IMAGE}:latest -o json > grype-report.json || true
 
       - name: Install Syft (SBOM generator)
         run: |
