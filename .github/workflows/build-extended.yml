@@ -236,6 +236,8 @@ jobs:
     permissions:
       contents: read
       security-events: write
+    env:
+      REGISTRY_IMAGE: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}
     outputs:
       trivy_critical: ${{ steps.parse-metrics.outputs.trivy_critical }}
       trivy_high: ${{ steps.parse-metrics.outputs.trivy_high }}
@@ -258,7 +260,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Pull latest image
-        run: docker pull docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest
+        run: docker pull ${REGISTRY_IMAGE}:latest
 
       - name: Setup Trivy
         uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514 # v0.2.0
@@ -281,7 +283,7 @@ jobs:
             --output trivy-report.txt \
             --severity CRITICAL,HIGH,MEDIUM \
             --exit-code 0 \
-            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest
+            ${REGISTRY_IMAGE}:latest
 
       - name: Run Trivy vulnerability scan (JSON)
         run: |
@@ -308,13 +310,13 @@ jobs:
             --format table \
             --output trivy-secrets.txt \
             --exit-code 0 \
-            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest
+            ${REGISTRY_IMAGE}:latest
           trivy image \
             --scanners secret \
             --format json \
             --output trivy-secrets.json \
             --exit-code 0 \
-            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest
+            ${REGISTRY_IMAGE}:latest
 
       - name: Setup Grype
         run: |
@@ -332,7 +334,7 @@ jobs:
           echo "$PWD/bin" >> $GITHUB_PATH
 
       - name: Generate SBOM
-        run: syft docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.image_name }}:latest -o json > sbom.json || echo '{"artifacts":[]}' > sbom.json
+        run: syft ${REGISTRY_IMAGE}:latest -o json > sbom.json || echo '{"artifacts":[]}' > sbom.json
 
       - name: Setup OSV Scanner
         run: |
