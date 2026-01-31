@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-if [ $# -ne 3 ]; then
+if [[ $# -ne 3 ]]; then
   echo "Usage: $0 <owner>/<repo> <workflow_path> <ref>" >&2
   exit 1
 fi
@@ -21,21 +21,21 @@ resolve_sha_via_git() {
 
   # Try annotated tag dereference first (tag^{})
   sha=$(git ls-remote --tags "${REMOTE_URL}" "${ref}^{ }" 2>/dev/null | awk '{print $1}')
-  if [ -n "${sha}" ]; then
+  if [[ -n "${sha}" ]]; then
     echo "${sha}"
     return 0
   fi
 
   # Try lightweight tag
   sha=$(git ls-remote --tags "${REMOTE_URL}" "${ref}" 2>/dev/null | awk '{print $1}')
-  if [ -n "${sha}" ]; then
+  if [[ -n "${sha}" ]]; then
     echo "${sha}"
     return 0
   fi
 
   # Try branch (heads)
   sha=$(git ls-remote --heads "${REMOTE_URL}" "${ref}" 2>/dev/null | awk '{print $1}')
-  if [ -n "${sha}" ]; then
+  if [[ -n "${sha}" ]]; then
     echo "${sha}"
     return 0
   fi
