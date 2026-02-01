@@ -40,10 +40,14 @@ jobs:
 
       - name: Set variables
         id: vars
+        env:
+          TAG_INPUT: ${{ inputs.tag }}
+          FORCE_INPUT: ${{ inputs.force }}
+          DRY_RUN_INPUT: ${{ inputs.dry_run }}
         run: |
-          TAG="${{ inputs.tag }}"
-          FORCE="${{ inputs.force }}"
-          DRY_RUN="${{ inputs.dry_run }}"
+          TAG="$TAG_INPUT"
+          FORCE="$FORCE_INPUT"
+          DRY_RUN="$DRY_RUN_INPUT"
 
           if [[ ! "$TAG" =~ ^v[0-9]+(\.[0-9]+){1,2}(-[a-zA-Z0-9]+(\.[0-9]+)?)?$ ]]; then
             echo "❌ Invalid tag format: $TAG"
@@ -88,38 +92,48 @@ jobs:
 
       - name: Handle existing tag
         id: handle-tag
+        env:
+          TAG: ${{ steps.vars.outputs.TAG }}
+          FORCE: ${{ steps.vars.outputs.FORCE }}
         run: |
-          if git rev-parse "${{ steps.vars.outputs.TAG }}" >/dev/null 2>&1; then
-            if [ "${{ steps.vars.outputs.FORCE }}" != "true" ]; then
-              echo "❌ Tag '${{ steps.vars.outputs.TAG }}' already exists. Use force=true to overwrite."
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            if [ "$FORCE" != "true" ]; then
+              echo "❌ Tag '$TAG' already exists. Use force=true to overwrite."
               exit 1
             else
-              echo "⚠ Force mode: deleting existing tag '${{ steps.vars.outputs.TAG }}'."
-              git tag -d "${{ steps.vars.outputs.TAG }}" || true
-              git push origin ":refs/tags/${{ steps.vars.outputs.TAG }}" || true
+              echo "⚠ Force mode: deleting existing tag '$TAG'."
+              git tag -d "$TAG" || true
+              git push origin ":refs/tags/$TAG" || true
             fi
           fi
 
       - name: Dry-run notice
         if: ${{ steps.vars.outputs.DRY_RUN == 'true' }}
+        env:
+          TAG: ${{ steps.vars.outputs.TAG }}
         run: |
           echo "🛠 Dry-run mode — no tag/release/archives creation."
-          echo "Would create release for tag: ${{ steps.vars.outputs.TAG }}"
+          echo "Would create release for tag: $TAG"
 
       - name: Create git tag and push
         if: ${{ steps.vars.outputs.DRY_RUN != 'true' }}
+        env:
+          TAG: ${{ steps.vars.outputs.TAG }}
         run: |
-          git tag "${{ steps.vars.outputs.TAG }}"
-          git push origin "${{ steps.vars.outputs.TAG }}"
+          git tag "$TAG"
+          git push origin "$TAG"
 
       - name: Create release archives
         if: ${{ steps.vars.outputs.DRY_RUN != 'true' }}
+        env:
+          PREFIX: ${{ steps.vars.outputs.PREFIX }}
+          TAG: ${{ steps.vars.outputs.TAG }}
         run: |
           mkdir -p release
-          git archive --format=tar.gz --prefix="${{ steps.vars.outputs.PREFIX }}" HEAD \
-            -- . ':!*.git*' '.github' > "release/${{ steps.vars.outputs.TAG }}.tar.gz"
-          git archive --format=zip --prefix="${{ steps.vars.outputs.PREFIX }}" HEAD \
-            -- . ':!*.git*' '.github' > "release/${{ steps.vars.outputs.TAG }}.zip"
+          git archive --format=tar.gz --prefix="$PREFIX" HEAD \
+            -- . ':!*.git*' '.github' > "release/$TAG.tar.gz"
+          git archive --format=zip --prefix="$PREFIX" HEAD \
+            -- . ':!*.git*' '.github' > "release/$TAG.zip"
 
       - name: Create GitHub Release and upload assets
         if: ${{ steps.vars.outputs.DRY_RUN != 'true' }}

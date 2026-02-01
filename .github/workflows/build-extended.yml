@@ -146,8 +146,10 @@ jobs:
 
       - name: Check if .env file exists
         id: check-env
+        env:
+          ENV_FILE_PATH: ${{ inputs.env_file_path }}
         run: |
-          if [ -f "${{ inputs.env_file_path }}" ]; then
+          if [ -f "$ENV_FILE_PATH" ]; then
             echo "env_exists=true" >> $GITHUB_OUTPUT
           else
             echo "env_exists=false" >> $GITHUB_OUTPUT
@@ -162,8 +164,11 @@ jobs:
 
       - name: Set version from .env
         if: steps.check-env.outputs.env_exists == 'true'
+        env:
+          VERSION_VAR_NAME: ${{ inputs.version_var_name }}
+          ENV_FILE_PATH: ${{ inputs.env_file_path }}
         run: |
-          VERSION_VALUE=$(grep "^${{ inputs.version_var_name }}=" "${{ inputs.env_file_path }}" | cut -d'=' -f2 | tr -d '"' || echo "")
+          VERSION_VALUE=$(grep "^$VERSION_VAR_NAME=" "$ENV_FILE_PATH" | cut -d'=' -f2 | tr -d '"' || echo "")
           if [ -n "$VERSION_VALUE" ]; then
             echo "VERSION=$VERSION_VALUE" >> $GITHUB_ENV
           fi
@@ -419,8 +424,10 @@ jobs:
 
       - name: Check if .env file exists
         id: check-env
+        env:
+          ENV_FILE_PATH: ${{ inputs.env_file_path }}
         run: |
-          if [ -f "${{ inputs.env_file_path }}" ]; then
+          if [ -f "$ENV_FILE_PATH" ]; then
             echo "env_exists=true" >> $GITHUB_OUTPUT
           else
             echo "env_exists=false" >> $GITHUB_OUTPUT
@@ -434,8 +441,11 @@ jobs:
 
       - name: Set version from .env
         if: steps.check-env.outputs.env_exists == 'true'
+        env:
+          VERSION_VAR_NAME: ${{ inputs.version_var_name }}
+          ENV_FILE_PATH: ${{ inputs.env_file_path }}
         run: |
-          VERSION_VALUE=$(grep "^${{ inputs.version_var_name }}=" "${{ inputs.env_file_path }}" | cut -d'=' -f2 | tr -d '"' || echo "")
+          VERSION_VALUE=$(grep "^$VERSION_VAR_NAME=" "$ENV_FILE_PATH" | cut -d'=' -f2 | tr -d '"' || echo "")
           if [ -n "$VERSION_VALUE" ]; then
             echo "VERSION=$VERSION_VALUE" >> $GITHUB_ENV
           fi
@@ -533,16 +543,18 @@ jobs:
           HEAD_REF: ${{ github.head_ref }}
           BASE_REF: ${{ github.base_ref }}
           REF_NAME: ${{ github.ref_name }}
+          SONAR_PROJECT_KEY: ${{ inputs.sonar_project_key }}
+          SONAR_ORGANIZATION: ${{ inputs.sonar_organization }}
         run: |
           if [ "$EVENT_NAME" = "pull_request" ]; then
-            echo "args=-Dsonar.projectKey=${{ inputs.sonar_project_key }} \
-                  -Dsonar.organization=${{ inputs.sonar_organization }} \
+            echo "args=-Dsonar.projectKey=$SONAR_PROJECT_KEY \
+                  -Dsonar.organization=$SONAR_ORGANIZATION \
                   -Dsonar.pullrequest.key=$PR_NUMBER \
                   -Dsonar.pullrequest.branch=$HEAD_REF \
                   -Dsonar.pullrequest.base=$BASE_REF" >> $GITHUB_OUTPUT
           else
-            echo "args=-Dsonar.projectKey=${{ inputs.sonar_project_key }} \
-                  -Dsonar.organization=${{ inputs.sonar_organization }} \
+            echo "args=-Dsonar.projectKey=$SONAR_PROJECT_KEY \
+                  -Dsonar.organization=$SONAR_ORGANIZATION \
                   -Dsonar.branch.name=$REF_NAME" >> $GITHUB_OUTPUT
           fi
       - name: SonarQube Scan
@@ -567,9 +579,9 @@ jobs:
         env:
           NEW_DIGEST: ${{ needs.check-base-image.outputs.alpine_digest }}
           GH_TOKEN: ${{ github.token }}
+          OWNER_REPO: ${{ github.repository }}
         run: |
           set -e
-          OWNER_REPO="${{ github.repository }}"
           VAR_NAME="ALPINE_DIGEST"
           echo "Updating repo variable $VAR_NAME to $NEW_DIGEST"
           curl -sS -X PATCH \
