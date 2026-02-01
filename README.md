@@ -1,5 +1,11 @@
 # GitHub Workflows Templates
 
+<!-- SonarQube Badges -->
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=lferrarotti74_github-workflows-templates&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=lferrarotti74_github-workflows-templates)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=lferrarotti74_github-workflows-templates&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=lferrarotti74_github-workflows-templates)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=lferrarotti74_github-workflows-templates&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=lferrarotti74_github-workflows-templates)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=lferrarotti74_github-workflows-templates&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=lferrarotti74_github-workflows-templates)
+
 Welcome to **`github-workflows-templates`** — a centralized repository for **reusable GitHub Actions workflows**, designed to simplify CI/CD across multiple repositories.  
 This repo is optimized for **Docker multi-architecture builds**, automatic version tagging, and flexible workflow reuse.
 
