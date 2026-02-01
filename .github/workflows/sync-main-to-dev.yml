@@ -33,14 +33,19 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Add authenticated remote
+        env:
+          REPO_NAME: ${{ github.repository }}
         run: |
-          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO_NAME}.git"
 
       - name: Determine if merge is needed
         id: need
+        env:
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
+          TARGET_BRANCH: ${{ inputs.target_branch }}
         run: |
-          git fetch origin ${{ inputs.source_branch }}
-          if git merge-base --is-ancestor origin/${{ inputs.source_branch }} ${{ inputs.target_branch }}; then
+          git fetch origin $SOURCE_BRANCH
+          if git merge-base --is-ancestor origin/$SOURCE_BRANCH $TARGET_BRANCH; then
             echo "needs_merge=false" >> $GITHUB_OUTPUT
           else
             echo "needs_merge=true" >> $GITHUB_OUTPUT
@@ -48,16 +53,24 @@ jobs:
 
       - name: Merge source into target
         if: steps.need.outputs.needs_merge == 'true'
+        env:
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
+          TARGET_BRANCH: ${{ inputs.target_branch }}
         run: |
           set -e
-          git checkout ${{ inputs.target_branch }}
-          git merge origin/${{ inputs.source_branch }} --no-ff -m "chore: sync ${{ inputs.source_branch }} into ${{ inputs.target_branch }}"
+          git checkout $TARGET_BRANCH
+          git merge origin/$SOURCE_BRANCH --no-ff -m "chore: sync $SOURCE_BRANCH into $TARGET_BRANCH"
 
       - name: Push changes
         if: steps.need.outputs.needs_merge == 'true'
-        run: git push origin ${{ inputs.target_branch }}
+        env:
+          TARGET_BRANCH: ${{ inputs.target_branch }}
+        run: git push origin $TARGET_BRANCH
 
       - name: Skip merge
         if: steps.need.outputs.needs_merge == 'false'
+        env:
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
+          TARGET_BRANCH: ${{ inputs.target_branch }}
         run: |
-          echo "No merge needed: ${{ inputs.target_branch }} already contains ${{ inputs.source_branch }}"
+          echo "No merge needed: $TARGET_BRANCH already contains $SOURCE_BRANCH"

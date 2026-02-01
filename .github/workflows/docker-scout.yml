@@ -46,8 +46,10 @@ jobs:
 
       - name: Check if .env file exists
         id: check-env
+        env:
+          ENV_FILE_PATH: ${{ inputs.env_file_path }}
         run: |
-          if [ -f "${{ inputs.env_file_path }}" ]; then
+          if [ -f "$ENV_FILE_PATH" ]; then
             echo "env_exists=true" >> $GITHUB_OUTPUT
           else
             echo "env_exists=false" >> $GITHUB_OUTPUT
@@ -62,8 +64,11 @@ jobs:
 
       - name: Set version from .env
         if: steps.check-env.outputs.env_exists == 'true'
+        env:
+          VERSION_VAR_NAME: ${{ inputs.version_var_name }}
+          ENV_FILE_PATH: ${{ inputs.env_file_path }}
         run: |
-          VERSION_VALUE=$(grep "^${{ inputs.version_var_name }}=" "${{ inputs.env_file_path }}" | cut -d'=' -f2 | tr -d '"' || echo "")
+          VERSION_VALUE=$(grep "^$VERSION_VAR_NAME=" "$ENV_FILE_PATH" | cut -d'=' -f2 | tr -d '"' || echo "")
           if [ -n "$VERSION_VALUE" ]; then
             echo "BUILD_VERSION=$VERSION_VALUE" >> $GITHUB_ENV
           fi
@@ -92,7 +97,7 @@ jobs:
 
       - name: Lowercase Docker image name
         run: |
-          IMAGE_LC=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_LC=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
           echo "IMAGE_LC=$IMAGE_LC" >> $GITHUB_ENV
 
       - name: Check Dockerfile presence
@@ -121,13 +126,16 @@ jobs:
 
       - name: Set image reference for Scout
         id: set-image-ref
+        env:
+          HAS_DOCKERFILE: ${{ steps.check-dockerfile.outputs.has_dockerfile }}
+          GENERATED_TAGS: ${{ steps.meta.outputs.tags }}
         run: |
-          if [ "${{ steps.check-dockerfile.outputs.has_dockerfile }}" = "true" ]; then
-            FIRST_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
+          if [ "$HAS_DOCKERFILE" = "true" ]; then
+            FIRST_TAG=$(echo "$GENERATED_TAGS" | head -n1)
             echo "IMAGE_REF=$FIRST_TAG" >> $GITHUB_ENV
             echo "Using built image tag: $FIRST_TAG"
           else
-            REMOTE_REF="${{ env.REGISTRY }}/${{ env.IMAGE_LC }}:${{ env.COMPARE_TAG }}"
+            REMOTE_REF="$REGISTRY/$IMAGE_LC:$COMPARE_TAG"
             echo "IMAGE_REF=$REMOTE_REF" >> $GITHUB_ENV
             echo "No Dockerfile found; analyzing remote image: $REMOTE_REF"
           fi
