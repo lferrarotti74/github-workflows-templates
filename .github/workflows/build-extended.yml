@@ -66,16 +66,13 @@ on:
       SONAR_TOKEN:
         required: false
 
-permissions:
-  contents: write
-  packages: write
-  pull-requests: write
-
 jobs:
   check-base-image:
     name: Check Alpine Base Update
     runs-on: ubuntu-latest
     if: inputs.enable_base_update_detection == true
+    permissions:
+      contents: read
     outputs:
       should_build: ${{ steps.check.outputs.should_build || steps.default.outputs.should_build }}
       update_reason: ${{ steps.check.outputs.update_reason || steps.default.outputs.update_reason }}
@@ -416,6 +413,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [check-base-image, build, security-scan]
     if: always()
+    permissions:
+      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.2.0
@@ -523,7 +522,7 @@ jobs:
     if: inputs.enable_sonar_scan == true
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.2.0
