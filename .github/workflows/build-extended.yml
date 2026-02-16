@@ -1,9 +1,5 @@
 name: Build Extended (Reusable)
 
-permissions:
-  actions: write
-  contents: write
-
 on:
   workflow_call:
     inputs:
