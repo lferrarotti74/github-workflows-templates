@@ -65,6 +65,9 @@ on:
         required: true
       SONAR_TOKEN:
         required: false
+      REPO_TOKEN:
+        description: "PAT with repo scope for repo variables API"
+        required: false
 
 jobs:
   check-base-image:
