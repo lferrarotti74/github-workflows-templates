@@ -592,15 +592,24 @@ jobs:
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/$OWNER_REPO/actions/variables/$VAR_NAME" \
             -d "{\"name\": \"$VAR_NAME\", \"value\": \"$NEW_DIGEST\"}")
-          if [ "$HTTP_CODE" = "404" ]; then
+          if [ "$HTTP_CODE" = "204" ]; then
+            echo "Variable updated (HTTP 204)"
+          elif [ "$HTTP_CODE" = "404" ]; then
             echo "Variable not found; creating $VAR_NAME"
-            curl -sS -X POST \
+            CREATE_CODE=$(curl -sS -o /tmp/create_resp.json -w "%{http_code}" -X POST \
               -H "Accept: application/vnd.github+json" \
               -H "Authorization: Bearer $GH_TOKEN" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
               "https://api.github.com/repos/$OWNER_REPO/actions/variables" \
-              -d "{\"name\": \"$VAR_NAME\", \"value\": \"$NEW_DIGEST\"}"
-          elif [ "$HTTP_CODE" != "200" ]; then
+              -d "{\"name\": \"$VAR_NAME\", \"value\": \"$NEW_DIGEST\"}")
+            if [ "$CREATE_CODE" = "201" ]; then
+              echo "Variable created (HTTP 201)"
+            else
+              echo "Create failed with HTTP $CREATE_CODE:"
+              cat /tmp/create_resp.json
+              exit 1
+            fi
+          else
             echo "PATCH failed with HTTP $HTTP_CODE:"
             cat /tmp/resp.json
             exit 1
