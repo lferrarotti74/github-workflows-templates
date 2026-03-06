@@ -1,0 +1,19 @@
+name: Dependabot Automation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  dependabot:
+    name: Dependabot Review & Merge
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    uses: ./.github/workflows/dependabot-reviewer.yml
+    with:
+      auto_merge: true
+    secrets:
+      REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
