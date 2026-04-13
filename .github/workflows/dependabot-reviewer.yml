@@ -19,7 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
     env:
-      GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ secrets.REPO_TOKEN || github.token }}
+      PR_URL: ${{ github.event.pull_request.html_url }}
     permissions:
       pull-requests: write
       contents: write
@@ -27,13 +28,6 @@ jobs:
       - name: Fetch Dependabot metadata
         id: dependabot-metadata
         uses: dependabot/fetch-metadata@ffa630c65fa7e0ecfa0625b5ceda64399aea1b36 # v3.0.0
-
-      - name: Enable auto-merge for Dependabot PRs
-        if: ${{ inputs.auto_merge == true }}
-        run: gh pr merge --auto --merge "$PR_URL"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GITHUB_TOKEN: ${{ secrets.REPO_TOKEN || github.token }}  # 👈 PAT if available, fallback to github.token
 
       - name: Approve patch and minor updates
         if: ${{ steps.dependabot-metadata.outputs.update-type == 'version-update:semver-patch' || steps.dependabot-metadata.outputs.update-type == 'version-update:semver-minor' }}
@@ -54,3 +48,10 @@ jobs:
           gh pr edit $PR_URL --add-label "requires-manual-qa"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
+
+      - name: Enable auto-merge for Dependabot PRs
+        if: ${{ inputs.auto_merge == true }}
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.REPO_TOKEN || github.token }}  # 👈 PAT if available, fallback to github.token
