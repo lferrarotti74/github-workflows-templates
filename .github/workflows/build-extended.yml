@@ -324,9 +324,18 @@ jobs:
             ${REGISTRY_IMAGE}:latest
 
       - name: Setup Grype
+        env:
+          GRYPE_INSTALLER_SHA256: 8646f06a90b10ca64992c1809b4aa00c44e30b4f551f63c309b0b0ab66873556
         run: |
           set -e
-          curl --proto "=https" --tlsv1.2 -sSfL https://raw.githubusercontent.com/anchore/grype/3e8647396b9b201136afe07a30b98cd5850dcc64/install.sh | sh -s -- -b /usr/local/bin
+          curl --proto "=https" --tlsv1.2 -sSfL \
+            https://raw.githubusercontent.com/anchore/grype/3e8647396b9b201136afe07a30b98cd5850dcc64/install.sh \
+            -o /tmp/grype-install.sh
+          echo "$GRYPE_INSTALLER_SHA256  /tmp/grype-install.sh" | sha256sum --check --status || {
+            echo "Grype installer hash verification failed"
+            exit 1
+          }
+          sh /tmp/grype-install.sh -b /usr/local/bin
           grype version || true
 
       - name: Run Grype vulnerability scan (JSON)
@@ -334,8 +343,17 @@ jobs:
           grype ${REGISTRY_IMAGE}:latest -o json > grype-report.json || true
 
       - name: Install Syft (SBOM generator)
+        env:
+          SYFT_INSTALLER_SHA256: 01d0d15aff461f1bc54d1716feb4824341918c4f37e1b6a5a0c0caee2251be67
         run: |
-          curl --proto "=https" --tlsv1.2 -sSfL https://raw.githubusercontent.com/anchore/syft/c94d1ccf1c6219da41cf1ad01c9c8473d62fdc12/install.sh | sh
+          curl --proto "=https" --tlsv1.2 -sSfL \
+            https://raw.githubusercontent.com/anchore/syft/c94d1ccf1c6219da41cf1ad01c9c8473d62fdc12/install.sh \
+            -o /tmp/syft-install.sh
+          echo "$SYFT_INSTALLER_SHA256  /tmp/syft-install.sh" | sha256sum --check --status || {
+            echo "Syft installer hash verification failed"
+            exit 1
+          }
+          sh /tmp/syft-install.sh
           echo "$PWD/bin" >> $GITHUB_PATH
 
       - name: Generate SBOM
