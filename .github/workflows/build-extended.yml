@@ -223,8 +223,10 @@ jobs:
         with:
           context: .
           platforms: ${{ inputs.arch_list }}
+          pull: true
           build-args: |
             VERSION=${{ env.VERSION }}
+            CACHEBUST=${{ github.event_name == 'schedule' && github.run_id || 1 }}
           push: ${{ inputs.enable_push }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
