@@ -226,7 +226,7 @@ jobs:
           pull: true
           build-args: |
             VERSION=${{ env.VERSION }}
-            CACHEBUST=${{ github.event_name == 'schedule' && github.run_id || 1 }}
+            CACHEBUST=${{ (inputs.enable_push && github.ref_name == github.event.repository.default_branch) && github.run_id || 1 }}
           push: ${{ inputs.enable_push }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
