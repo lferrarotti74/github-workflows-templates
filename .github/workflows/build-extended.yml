@@ -93,11 +93,11 @@ jobs:
         run: |
           set -e
           echo "🔍 Checking Alpine Linux for updates..."
-          NEW_DIGEST=$(docker manifest inspect alpine:latest | jq -r '.config.digest // .digest // empty')
+          NEW_DIGEST=$(docker manifest inspect alpine:3 | jq -r '.config.digest // .digest // empty')
           if [ -z "$NEW_DIGEST" ] || [ "$NEW_DIGEST" = "null" ]; then
             echo "Trying alternative digest retrieval..."
-            docker pull alpine:latest > /dev/null 2>&1 || true
-            NEW_DIGEST=$(docker image inspect alpine:latest --format '{{index .RepoDigests 0}}' | cut -d'@' -f2)
+            docker pull alpine:3 > /dev/null 2>&1 || true
+            NEW_DIGEST=$(docker image inspect alpine:3 --format '{{index .RepoDigests 0}}' | cut -d'@' -f2)
           fi
           if [[ ! "$NEW_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
             echo "⚠️ Invalid Alpine digest: $NEW_DIGEST"
@@ -213,9 +213,9 @@ jobs:
             type=edge,branch=$repo.default_branch
             type=semver,pattern=v{{version}}
             type=sha,prefix=,suffix=,format=short
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ github.ref_name == github.event.repository.default_branch }}
             type=raw,value=${{ env.VERSION }},enable=${{ inputs.enable_push }}
-            type=raw,value=alpine-update-{{date 'YYYY-MM-DD'}},enable=${{ github.event_name == 'schedule' && needs.check-base-image.outputs.should_build == 'true' }}
+            type=raw,value=alpine-update-{{date 'YYYY-MM-DD'}},enable=${{ github.event_name == 'schedule' }}
 
       - name: Build and push (multi-arch)
         id: build
