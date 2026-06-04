@@ -7,6 +7,8 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # This is likely what was missing based on my discovery
+  actions: write 
 
 jobs:
   dependabot:
