@@ -22,6 +22,31 @@ on:
         required: false
         type: string
         default: "VERSION"
+      fail_on_vulnerabilities:
+        description: "Fail the job if Scout finds a vulnerability at or above only-severities"
+        required: false
+        type: boolean
+        default: false
+      organization:
+        description: "Docker Scout organization (empty uses the org tied to the Docker Hub login)"
+        required: false
+        type: string
+        default: ""
+      enable_policy_evaluation:
+        description: "Run Docker Scout Policy Evaluation as an extra step in the scout job"
+        required: false
+        type: boolean
+        default: false
+      policy_exit_code:
+        description: "Fail the job if the image is non-compliant with policies"
+        required: false
+        type: boolean
+        default: false
+      policy_config_path:
+        description: "Path to a custom policy config JSON file (empty uses built-in policies)"
+        required: false
+        type: string
+        default: ""
 
     secrets:
       DOCKERHUB_USERNAME:
@@ -75,6 +100,8 @@ jobs:
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@594f3bf4285d9ea8dc53c9a0c9c4092420091003 # v4.4.0
+        with:
+          driver: docker-container  # required for cache-to: type=registry
 
       - name: Log into registry
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -153,6 +180,8 @@ jobs:
           only-fixed: true
           write-comment: true
           github-token: ${{ env.GITHUB_TOKEN }}
+          organization: ${{ inputs.organization }}
+          exit-code: ${{ inputs.fail_on_vulnerabilities }}
 
       - name: Docker Scout (analyze remote)
         if: github.event_name != 'pull_request' || steps.check-dockerfile.outputs.has_dockerfile != 'true'
@@ -164,3 +193,38 @@ jobs:
           ignore-unchanged: true
           only-severities: critical,high,medium
           only-fixed: true
+          organization: ${{ inputs.organization }}
+          exit-code: ${{ inputs.fail_on_vulnerabilities }}
+
+      - name: Ensure Docker Scout CLI
+        if: ${{ !cancelled() && inputs.enable_policy_evaluation == true && steps.build-and-push.outcome != 'failure' }}
+        env:
+          SCOUT_VERSION: 1.24.0
+        run: |
+          if docker scout version >/dev/null 2>&1; then
+            echo "docker scout already available"
+          else
+            ASSET="docker-scout_${SCOUT_VERSION}_linux_amd64.tar.gz"
+            BASE="https://github.com/docker/scout-cli/releases/download/v${SCOUT_VERSION}"
+            curl -fsSLO "$BASE/$ASSET"
+            curl -fsSLO "$BASE/docker-scout_${SCOUT_VERSION}_checksums.txt"
+            grep " $ASSET\$" "docker-scout_${SCOUT_VERSION}_checksums.txt" | sha256sum -c -
+            mkdir -p "$HOME/.docker/cli-plugins"
+            tar -xzf "$ASSET" -C "$HOME/.docker/cli-plugins" docker-scout
+            chmod +x "$HOME/.docker/cli-plugins/docker-scout"
+          fi
+          docker scout version
+
+      - name: Docker Scout (policy evaluation)
+        if: ${{ !cancelled() && inputs.enable_policy_evaluation == true && steps.build-and-push.outcome != 'failure' }}
+        env:
+          SCOUT_ORG: ${{ inputs.organization }}
+          POLICY_CONFIG_PATH: ${{ inputs.policy_config_path }}
+          POLICY_EXIT_CODE: ${{ inputs.policy_exit_code }}
+        run: |
+          ARGS=()
+          [ -n "$SCOUT_ORG" ] && ARGS+=(--org "$SCOUT_ORG")
+          [ -n "$POLICY_CONFIG_PATH" ] && ARGS+=(--policy-config "$POLICY_CONFIG_PATH")
+          [ "$POLICY_EXIT_CODE" = "true" ] && ARGS+=(--exit-code)
+          echo "Evaluating policies for $IMAGE_REF"
+          docker scout policy "$IMAGE_REF" "${ARGS[@]}"

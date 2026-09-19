@@ -23,6 +23,11 @@ on:
         required: false
         type: string
         default: 'SPEEDTEST_VERSION'
+      run_policy_gate_test:
+        description: 'Also run the negative policy-gate test (its called job is expected to fail, so the run ends red)'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -57,9 +62,43 @@ jobs:
       compare_tag: ${{ inputs.compare_tag }}
       env_file_path: ${{ inputs.env_file_path }}
       version_var_name: ${{ inputs.version_var_name }}
+      enable_policy_evaluation: true
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  # Negative test: busybox:1.28 has no provenance/SBOM attestations and runs as root,
+  # so with policy_exit_code=true the called job must fail. continue-on-error is not
+  # supported on reusable-workflow jobs, so the run itself ends red when this is enabled;
+  # assert_policy_gate reports whether the failure was the expected one.
+  validate_policy_gate:
+    needs: [precheck]
+    if: needs.precheck.outputs.should_run == 'true' && inputs.run_policy_gate_test
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@main
+    with:
+      image_name: library/busybox
+      compare_tag: '1.28'
+      enable_policy_evaluation: true
+      policy_exit_code: true
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  assert_policy_gate:
+    needs: [validate_policy_gate]
+    if: always() && needs.validate_policy_gate.result != 'skipped'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assert policy gate failed the job
+        env:
+          RESULT: ${{ needs.validate_policy_gate.result }}
+        run: |
+          if [ "$RESULT" = "failure" ]; then
+            echo "OK: policy_exit_code=true failed the job as expected (busybox:1.28 violates default policies)."
+          else
+            echo "::error::Expected validate_policy_gate to fail but result was '$RESULT'; the policy gate is not working."
+            exit 1
+          fi
 
   diagnostic:
     needs: [precheck]
