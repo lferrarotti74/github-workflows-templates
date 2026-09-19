@@ -114,8 +114,23 @@ jobs:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
+  # Guard test: one valid and one nonexistent policy name, with policy_exit_code false.
+  # The job must still fail because the evaluated count (1) differs from the names given (2).
+  validate_policy_only_typo:
+    needs: [precheck]
+    if: needs.precheck.outputs.should_run == 'true' && inputs.run_policy_gate_test
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@main
+    with:
+      image_name: lferrarotti74/speedtest-ookla
+      compare_tag: latest
+      enable_policy_evaluation: true
+      policy_only: 'Default non-root user,No such policy name'
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
   assert_policy_gate:
-    needs: [validate_policy_gate, validate_policy_only, validate_policy_only_control]
+    needs: [validate_policy_gate, validate_policy_only, validate_policy_only_control, validate_policy_only_typo]
     if: always() && needs.validate_policy_gate.result != 'skipped'
     runs-on: ubuntu-latest
     steps:
@@ -124,12 +139,14 @@ jobs:
           GATE: ${{ needs.validate_policy_gate.result }}
           ONLY: ${{ needs.validate_policy_only.result }}
           CONTROL: ${{ needs.validate_policy_only_control.result }}
+          TYPO: ${{ needs.validate_policy_only_typo.result }}
         run: |
           status=0
           [ "$GATE" = "failure" ] || { echo "::error::validate_policy_gate expected 'failure' but was '$GATE'"; status=1; }
           [ "$ONLY" = "success" ] || { echo "::error::validate_policy_only expected 'success' but was '$ONLY' (policy_only did not narrow evaluation)"; status=1; }
           [ "$CONTROL" = "failure" ] || { echo "::error::validate_policy_only_control expected 'failure' but was '$CONTROL' (control image no longer violates a policy, so the test proves nothing)"; status=1; }
-          [ "$status" = 0 ] && echo "OK: gate failed, policy_only subset passed, control failed."
+          [ "$TYPO" = "failure" ] || { echo "::error::validate_policy_only_typo expected 'failure' but was '$TYPO' (the policy_only count guard did not trigger)"; status=1; }
+          [ "$status" = 0 ] && echo "OK: gate failed, policy_only subset passed, control and typo cases failed."
           exit $status
 
   diagnostic:
