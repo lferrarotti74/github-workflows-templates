@@ -47,6 +47,11 @@ on:
         required: false
         type: string
         default: ""
+      policy_only:
+        description: "Comma-separated policy display names to evaluate, e.g. 'Default non-root user,No fixable critical or high vulnerabilities' (empty evaluates all). Names must match exactly; an unknown name is silently ignored"
+        required: false
+        type: string
+        default: ""
 
     secrets:
       DOCKERHUB_USERNAME:
@@ -220,11 +225,13 @@ jobs:
         env:
           SCOUT_ORG: ${{ inputs.organization }}
           POLICY_CONFIG_PATH: ${{ inputs.policy_config_path }}
+          POLICY_ONLY: ${{ inputs.policy_only }}
           POLICY_EXIT_CODE: ${{ inputs.policy_exit_code }}
         run: |
           ARGS=()
           [ -n "$SCOUT_ORG" ] && ARGS+=(--org "$SCOUT_ORG")
           [ -n "$POLICY_CONFIG_PATH" ] && ARGS+=(--policy-config "$POLICY_CONFIG_PATH")
+          [ -n "$POLICY_ONLY" ] && ARGS+=(--only-policy "$POLICY_ONLY")
           [ "$POLICY_EXIT_CODE" = "true" ] && ARGS+=(--exit-code)
           echo "Evaluating policies for $IMAGE_REF"
           docker scout policy "$IMAGE_REF" "${ARGS[@]}"

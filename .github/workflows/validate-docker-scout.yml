@@ -70,7 +70,7 @@ jobs:
   # Negative test: busybox:1.28 has no provenance/SBOM attestations and runs as root,
   # so with policy_exit_code=true the called job must fail. continue-on-error is not
   # supported on reusable-workflow jobs, so the run itself ends red when this is enabled;
-  # assert_policy_gate reports whether the failure was the expected one.
+  # assert_policy_gate reports whether the failures/successes were the expected ones.
   validate_policy_gate:
     needs: [precheck]
     if: needs.precheck.outputs.should_run == 'true' && inputs.run_policy_gate_test
@@ -84,21 +84,53 @@ jobs:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
+  # policy_only narrowing test, using the default image (lferrarotti74/speedtest-ookla:latest),
+  # which complies with the two policies below but fails "Copyleft licensed packages found".
+  # Expected: this job succeeds, while the control job (same image, no policy_only) fails.
+  validate_policy_only:
+    needs: [precheck]
+    if: needs.precheck.outputs.should_run == 'true' && inputs.run_policy_gate_test
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@main
+    with:
+      image_name: lferrarotti74/speedtest-ookla
+      compare_tag: latest
+      enable_policy_evaluation: true
+      policy_exit_code: true
+      policy_only: 'Default non-root user,No fixable critical or high vulnerabilities'
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  validate_policy_only_control:
+    needs: [precheck]
+    if: needs.precheck.outputs.should_run == 'true' && inputs.run_policy_gate_test
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@main
+    with:
+      image_name: lferrarotti74/speedtest-ookla
+      compare_tag: latest
+      enable_policy_evaluation: true
+      policy_exit_code: true
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
   assert_policy_gate:
-    needs: [validate_policy_gate]
+    needs: [validate_policy_gate, validate_policy_only, validate_policy_only_control]
     if: always() && needs.validate_policy_gate.result != 'skipped'
     runs-on: ubuntu-latest
     steps:
-      - name: Assert policy gate failed the job
+      - name: Assert expected gate results
         env:
-          RESULT: ${{ needs.validate_policy_gate.result }}
+          GATE: ${{ needs.validate_policy_gate.result }}
+          ONLY: ${{ needs.validate_policy_only.result }}
+          CONTROL: ${{ needs.validate_policy_only_control.result }}
         run: |
-          if [ "$RESULT" = "failure" ]; then
-            echo "OK: policy_exit_code=true failed the job as expected (busybox:1.28 violates default policies)."
-          else
-            echo "::error::Expected validate_policy_gate to fail but result was '$RESULT'; the policy gate is not working."
-            exit 1
-          fi
+          status=0
+          [ "$GATE" = "failure" ] || { echo "::error::validate_policy_gate expected 'failure' but was '$GATE'"; status=1; }
+          [ "$ONLY" = "success" ] || { echo "::error::validate_policy_only expected 'success' but was '$ONLY' (policy_only did not narrow evaluation)"; status=1; }
+          [ "$CONTROL" = "failure" ] || { echo "::error::validate_policy_only_control expected 'failure' but was '$CONTROL' (control image no longer violates a policy, so the test proves nothing)"; status=1; }
+          [ "$status" = 0 ] && echo "OK: gate failed, policy_only subset passed, control failed."
+          exit $status
 
   diagnostic:
     needs: [precheck]
