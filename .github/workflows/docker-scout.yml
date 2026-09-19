@@ -48,7 +48,7 @@ on:
         type: string
         default: ""
       policy_only:
-        description: "Comma-separated policy display names to evaluate, e.g. 'Default non-root user,No fixable critical or high vulnerabilities' (empty evaluates all). Names must match exactly; an unknown name is silently ignored"
+        description: "Comma-separated policy display names to evaluate, e.g. 'Default non-root user,No fixable critical or high vulnerabilities' (empty evaluates all). Names must match exactly; the job fails if the number of policies evaluated differs from the number of names given"
         required: false
         type: string
         default: ""
@@ -234,4 +234,22 @@ jobs:
           [ -n "$POLICY_ONLY" ] && ARGS+=(--only-policy "$POLICY_ONLY")
           [ "$POLICY_EXIT_CODE" = "true" ] && ARGS+=(--exit-code)
           echo "Evaluating policies for $IMAGE_REF"
-          docker scout policy "$IMAGE_REF" "${ARGS[@]}"
+          docker scout policy "$IMAGE_REF" "${ARGS[@]}" 2>&1 | tee "$RUNNER_TEMP/policy-output.txt"
+          POLICY_RC=${PIPESTATUS[0]}
+
+          # Guard: policy_only names are matched against undocumented display titles, and an
+          # unmatched name is silently ignored (an empty entry silently selects ALL policies).
+          # Fail on any mismatch, even when policy_exit_code is false.
+          if [ -n "$POLICY_ONLY" ]; then
+            NAMES_GIVEN=$(echo "$POLICY_ONLY" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -c . || true)
+            EVALUATED=$(grep -oE '\([0-9]+/[0-9]+ policies met\)' "$RUNNER_TEMP/policy-output.txt" | tail -n1 | sed -E 's/\(([0-9]+)\/([0-9]+) .*/\2/')
+            if [ -z "$EVALUATED" ]; then
+              echo "::error::policy_only is set but the evaluated policy count could not be read from the docker scout output"
+              exit 1
+            fi
+            if [ "$EVALUATED" != "$NAMES_GIVEN" ]; then
+              echo "::error::policy_only names $NAMES_GIVEN policies but $EVALUATED were evaluated - check for a typo, stray space/empty entry, or a Scout policy rename"
+              exit 1
+            fi
+          fi
+          exit "$POLICY_RC"
