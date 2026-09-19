@@ -206,8 +206,8 @@ jobs:
           else
             ASSET="docker-scout_${SCOUT_VERSION}_linux_amd64.tar.gz"
             BASE="https://github.com/docker/scout-cli/releases/download/v${SCOUT_VERSION}"
-            curl -fsSLO "$BASE/$ASSET"
-            curl -fsSLO "$BASE/docker-scout_${SCOUT_VERSION}_checksums.txt"
+            curl --proto "=https" --tlsv1.2 -fsSLO "$BASE/$ASSET"
+            curl --proto "=https" --tlsv1.2 -fsSLO "$BASE/docker-scout_${SCOUT_VERSION}_checksums.txt"
             grep " $ASSET\$" "docker-scout_${SCOUT_VERSION}_checksums.txt" | sha256sum -c -
             mkdir -p "$HOME/.docker/cli-plugins"
             tar -xzf "$ASSET" -C "$HOME/.docker/cli-plugins" docker-scout
