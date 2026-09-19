@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   validate:
-    uses: lferrarotti74/github-workflows-templates/.github/workflows/sync-main-to-dev.yml@c6c4b658fe885031fd727cd2305563cae44ab8a2
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/sync-main-to-dev.yml@c73ef23d58df103c14f5d3d209c35e9d83b58d8d
     with:
       source_branch: ${{ inputs.source_branch }}
       target_branch: ${{ inputs.target_branch }}
